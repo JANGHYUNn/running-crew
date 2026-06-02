@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import RecordCard, {
   CARD_SIZE,
@@ -13,6 +13,16 @@ import {
   parseDurationToSeconds,
 } from "@/lib/format";
 import { crew } from "@/lib/crew";
+import {
+  activityToCardInputs,
+  buildAuthorizeUrl,
+  clearTokens,
+  exchangeCode,
+  fetchClientId,
+  fetchRecentRuns,
+  loadTokens,
+  type StravaActivity,
+} from "@/lib/strava";
 
 export default function CardPage() {
   const cardRef = useRef<HTMLDivElement>(null);
@@ -25,6 +35,72 @@ export default function CardPage() {
   const [ratio, setRatio] = useState<CardRatio>("story");
   const [photo, setPhoto] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // ---- Strava 연동 상태 ----
+  const [clientId, setClientId] = useState<string | null>(null); // null=확인중, ""=미설정
+  const stravaEnabled = !!clientId;
+  const [connected, setConnected] = useState(false);
+  const [runs, setRuns] = useState<StravaActivity[] | null>(null);
+  const [stravaBusy, setStravaBusy] = useState(false);
+  const [stravaError, setStravaError] = useState<string | null>(null);
+  const exchangedRef = useRef(false); // code 교환 1회 보장(StrictMode 중복 방지)
+
+  // 마운트 시: 워커에서 연동 가능 여부(client_id) 확인 + 저장 토큰 확인 + ?code 교환
+  useEffect(() => {
+    fetchClientId().then(setClientId);
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+
+    if (code && !exchangedRef.current) {
+      exchangedRef.current = true;
+      setStravaBusy(true);
+      exchangeCode(code)
+        .then(() => setConnected(true))
+        .catch((e) => setStravaError(e.message))
+        .finally(() => {
+          setStravaBusy(false);
+          // URL에서 code/scope 제거(코드 1회용이라 새로고침 재교환 방지)
+          window.history.replaceState({}, "", window.location.pathname);
+        });
+    } else {
+      setConnected(loadTokens() !== null);
+    }
+  }, []);
+
+  function handleConnect() {
+    if (!clientId) return;
+    window.location.href = buildAuthorizeUrl(
+      clientId,
+      `${window.location.origin}/card`
+    );
+  }
+
+  function handleDisconnect() {
+    clearTokens();
+    setConnected(false);
+    setRuns(null);
+  }
+
+  async function handleLoadRuns() {
+    setStravaBusy(true);
+    setStravaError(null);
+    try {
+      setRuns(await fetchRecentRuns());
+    } catch (e) {
+      setStravaError(e instanceof Error ? e.message : "불러오기 실패");
+    } finally {
+      setStravaBusy(false);
+    }
+  }
+
+  function handlePickRun(a: StravaActivity) {
+    const v = activityToCardInputs(a);
+    setDistance(v.distance);
+    setDurationInput(v.duration);
+    setDate(v.date);
+    if (v.name) setLocation(v.name);
+  }
 
   // 입력으로부터 파생값 계산 (페이스/시간/날짜 포맷)
   const derived = useMemo(() => {
@@ -107,6 +183,83 @@ export default function CardPage() {
           label="피드 1:1"
         />
       </div>
+
+      {/* Strava 연동 (NEXT_PUBLIC_STRAVA_CLIENT_ID 설정 시에만 노출) */}
+      {stravaEnabled && (
+        <div className="mb-5 rounded-2xl border border-neutral-200 bg-white p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 font-bold">
+                <span style={{ color: "#FC4C02" }}>●</span> Strava에서 불러오기
+              </div>
+              <p className="mt-0.5 text-xs text-neutral-500">
+                연동하면 거리·시간·날짜가 자동 입력됩니다. (Strava 미사용자는
+                아래에서 직접 입력 + 사진 업로드)
+              </p>
+            </div>
+            {connected ? (
+              <button
+                onClick={handleDisconnect}
+                className="shrink-0 rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-500 hover:bg-neutral-200"
+              >
+                연동 해제
+              </button>
+            ) : (
+              <button
+                onClick={handleConnect}
+                disabled={stravaBusy}
+                className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                style={{ backgroundColor: "#FC4C02" }}
+              >
+                {stravaBusy ? "연결 중…" : "Strava 연동"}
+              </button>
+            )}
+          </div>
+
+          {connected && (
+            <div className="mt-4">
+              <button
+                onClick={handleLoadRuns}
+                disabled={stravaBusy}
+                className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {stravaBusy ? "불러오는 중…" : "최근 러닝 불러오기"}
+              </button>
+
+              {runs && runs.length === 0 && (
+                <p className="mt-3 text-sm text-neutral-500">
+                  최근 러닝 기록이 없습니다.
+                </p>
+              )}
+
+              {runs && runs.length > 0 && (
+                <ul className="mt-3 max-h-60 space-y-1 overflow-y-auto">
+                  {runs.map((a) => {
+                    const v = activityToCardInputs(a);
+                    return (
+                      <li key={a.id}>
+                        <button
+                          onClick={() => handlePickRun(a)}
+                          className="flex w-full items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-left text-sm hover:border-neutral-400 hover:bg-neutral-50"
+                        >
+                          <span className="truncate pr-2">{a.name}</span>
+                          <span className="tnum shrink-0 text-neutral-500">
+                            {v.distance}km · {v.duration} · {v.date.slice(5)}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {stravaError && (
+            <p className="mt-3 text-sm text-red-500">{stravaError}</p>
+          )}
+        </div>
+      )}
 
       {/* 입력 폼 */}
       <div className="grid gap-4 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">

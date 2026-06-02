@@ -1,0 +1,11 @@
+{
+  // Cloudflare Workers 정적 자산 배포 설정 (서버 코드 없음 = assets-only)
+  // next build(output: "export") 결과물인 out/ 폴더를 그대로 서빙한다.
+  "name": "running-crew",
+  "compatibility_date": "2025-06-01",
+  "assets": {
+    "directory": "./out",
+    // 정적 export는 각 경로별 .html이 생성됨. 없는 경로는 404.html로.
+    "not_found_handling": "404-page"
+  }
+}

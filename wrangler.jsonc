@@ -1,16 +1,11 @@
 {
-  // Cloudflare Workers 배포 설정.
-  // - assets: next build(output:"export") 결과물 out/ 을 정적 서빙
-  // - main:   /api/strava/* OAuth 처리용 워커. 그 외 요청은 ASSETS로 위임.
-  // 정적 자산이 먼저 매칭되고, 매칭 안 되는 경로(/api/...)만 워커가 실행됨.
+  // Cloudflare 배포 설정 — 순수 정적(서버 코드 없음).
+  // next build(output:"export") 결과물 out/ 을 그대로 서빙한다.
+  // OCR·애니메이션·내보내기는 전부 브라우저에서 처리하므로 워커가 필요 없다.
   "name": "running-crew",
-  "main": "worker/index.ts",
   "compatibility_date": "2025-06-01",
   "assets": {
     "directory": "./out",
-    // 정적 export는 경로별 .html 생성. 없는 경로는 404.html로.
-    "not_found_handling": "404-page",
-    // 워커에서 정적 자산으로 위임할 때 사용하는 바인딩 이름
-    "binding": "ASSETS"
+    "not_found_handling": "404-page"
   }
 }

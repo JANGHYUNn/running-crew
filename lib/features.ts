@@ -13,8 +13,8 @@ export const features: Feature[] = [
   {
     href: "/card",
     title: "기록 인증 카드",
-    emoji: "📸",
-    desc: "거리·페이스 입력하면 인스타 공유용 카드 자동 생성",
+    emoji: "🎬",
+    desc: "Strava·NRC 기록 이미지를 올리면 애니메이션 영상·GIF로 자동 변환",
     status: "ready",
   },
   {

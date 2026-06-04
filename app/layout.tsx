@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: `${crew.name} · 크루 앱`,
+  title: `${crew.name} · 크루`,
   description: crew.tagline,
 };
 

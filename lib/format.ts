@@ -53,3 +53,19 @@ export function formatDateDot(isoDate: string): string {
   if (!isoDate) return "";
   return isoDate.replaceAll("-", ".");
 }
+
+/** 오늘 날짜를 로컬 기준 "YYYY-MM-DD" 로 반환(input[type=date]·시즌 비교용) */
+export function todayISO(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/** 거리(km) 표기: 소수 1자리, 1000단위 콤마 */
+export function formatKm(km: number): string {
+  return km.toLocaleString("ko-KR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+}

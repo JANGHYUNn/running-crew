@@ -7,12 +7,14 @@ export default function Home() {
     <div className="mx-auto max-w-2xl px-4 py-10">
       <section className="mb-10 text-center">
         <div className="mb-3 text-5xl">{crew.logoEmoji}</div>
-        <h1 className="text-2xl font-bold">{crew.name} 크루 앱</h1>
+        <h1 className="text-2xl font-bold">{crew.name} Crew</h1>
         <p className="mt-2 text-neutral-500">{crew.tagline}</p>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {features.map((f) => {
+      <div className="mx-auto grid max-w-sm gap-3">
+        {features
+          .filter((f) => f.status !== "hidden")
+          .map((f) => {
           const card = (
             <div
               className={`flex h-full flex-col rounded-2xl border p-5 transition ${
@@ -46,9 +48,9 @@ export default function Home() {
         })}
       </div>
 
-      <p className="mt-8 text-center text-xs text-neutral-400">
+      {/* <p className="mt-8 text-center text-xs text-neutral-400">
         운영비 0원 · 정적 사이트 · 단계별로 기능이 추가됩니다
-      </p>
+      </p> */}
     </div>
   );
 }

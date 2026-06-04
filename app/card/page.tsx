@@ -22,6 +22,7 @@ export default function CardPage() {
 
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrError, setOcrError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "video" | "gif">(null);
 
   const previewRef = useRef<HTMLCanvasElement>(null);
@@ -62,6 +63,7 @@ export default function CardPage() {
     setImg(image);
 
     // 자동 인식
+    setOcrError(null);
     setOcrBusy(true);
     setOcrProgress(0);
     try {
@@ -69,8 +71,14 @@ export default function CardPage() {
       if (stats.distance) setDistance(stats.distance);
       if (stats.pace) setPace(stats.pace);
       if (stats.duration) setDuration(stats.duration);
+      if (!stats.distance && !stats.pace && !stats.duration)
+        setOcrError("숫자를 못 찾았어요. 아래에서 직접 입력해 주세요.");
     } catch (err) {
       console.error(err);
+      setOcrError(
+        (err instanceof Error ? err.message : String(err)) ||
+          "이미지 인식에 실패했어요."
+      );
     } finally {
       setOcrBusy(false);
     }
@@ -153,6 +161,9 @@ export default function CardPage() {
           <p className="mt-3 text-sm text-neutral-500">
             숫자 인식 중… {Math.round(ocrProgress * 100)}%
           </p>
+        )}
+        {ocrError && (
+          <p className="mt-3 break-all text-sm text-red-500">{ocrError}</p>
         )}
       </div>
 

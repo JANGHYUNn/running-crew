@@ -23,13 +23,40 @@ body {
 /* 폼 입력 공통 스타일 */
 .input {
   width: 100%;
+  /* grid/flex 칸 안에서 날짜 인풋이 칸을 넘쳐 겹치지 않게 (intrinsic 최소너비 무시) */
+  min-width: 0;
+  box-sizing: border-box;
   border-radius: 0.5rem;
   border: 1px solid var(--color-neutral-300, #d4d4d4);
   padding: 0.5rem 0.75rem;
   /* 16px 미만이면 iOS가 포커스 시 화면을 확대함 → 16px 이상 고정 */
   font-size: 16px;
+  line-height: 1.5;
+  background-color: #fff;
+  color: inherit;
   outline: none;
 }
 .input:focus {
   border-color: #737373;
+}
+
+/* 날짜 인풋(type="date") 정규화 — 브라우저마다 높이·정렬·내부여백이 제각각이라
+   일반 인풋과 동일하게 보이도록 맞춘다. select에는 적용 안 함(네이티브 화살표 유지). */
+input[type="date"].input,
+input[type="time"].input,
+input[type="datetime-local"].input {
+  -webkit-appearance: none;
+  appearance: none;
+  /* 텍스트 인풋과 같은 높이로 고정 (빈 값일 때 높이 들쭉날쭉 방지) */
+  min-height: calc(1.5em + 1rem + 2px);
+}
+/* iOS/WebKit: 날짜 값 텍스트가 가운데로 쏠리거나 여백이 생기는 것 정렬 */
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+/* 데스크톱 Chrome: 달력 아이콘을 오른쪽 끝으로 */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  margin-inline-start: auto;
 }

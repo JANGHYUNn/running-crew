@@ -144,14 +144,11 @@ export default function AdminPage() {
     });
   }
 
-  async function handleAddMembers(teamId: string, raw: string) {
-    const names = raw
-      .split(/[\n,]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (names.length === 0) return;
+  async function handleAddMember(teamId: string, name: string) {
+    const n = name.trim();
+    if (!n) return;
     await run(async () => {
-      for (const name of names) await createMember(teamId, name);
+      await createMember(teamId, n);
       await reloadTeamsAndMembers(seasonId);
     });
   }
@@ -428,7 +425,7 @@ export default function AdminPage() {
                     members={members.filter((m) => m.team_id === t.id)}
                     busy={busy}
                     onDeleteTeam={() => handleDeleteTeam(t.id)}
-                    onAddMembers={(raw) => handleAddMembers(t.id, raw)}
+                    onAddMember={(name) => handleAddMember(t.id, name)}
                     onMoveMember={handleMoveMember}
                     onDeleteMember={handleDeleteMember}
                   />
@@ -448,7 +445,7 @@ function TeamCard({
   members,
   busy,
   onDeleteTeam,
-  onAddMembers,
+  onAddMember,
   onMoveMember,
   onDeleteMember,
 }: {
@@ -457,11 +454,11 @@ function TeamCard({
   members: Member[];
   busy: boolean;
   onDeleteTeam: () => void;
-  onAddMembers: (raw: string) => void;
+  onAddMember: (name: string) => void;
   onMoveMember: (id: string, teamId: string) => void;
   onDeleteMember: (id: string) => void;
 }) {
-  const [raw, setRaw] = useState("");
+  const [name, setName] = useState("");
   return (
     <div className="rounded-xl border border-neutral-200 p-4">
       <div className="mb-2 flex items-center justify-between">
@@ -511,18 +508,23 @@ function TeamCard({
         )}
       </ul>
 
-      <div className="flex items-start gap-2">
-        <textarea
-          value={raw}
-          onChange={(e) => setRaw(e.target.value)}
-          rows={1}
-          className="input resize-y"
-          placeholder="이름 추가 (여러 명은 줄바꿈/쉼표로)"
+      <div className="flex items-center gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              onAddMember(name);
+              setName("");
+            }
+          }}
+          className="input"
+          placeholder="이름 추가"
         />
         <button
           onClick={() => {
-            onAddMembers(raw);
-            setRaw("");
+            onAddMember(name);
+            setName("");
           }}
           disabled={busy}
           className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50"

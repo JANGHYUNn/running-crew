@@ -2,58 +2,45 @@
 
 import { useEffect, useRef, useState } from "react";
 import { crew } from "@/lib/crew";
-import { runOcr } from "@/lib/ocr";
-import {
-  drawFrame,
-  PREVIEW_SIZE,
-  type Ratio,
-  type Scene,
-} from "@/lib/cardRender";
+import { PREVIEW_SIZE, type Ratio } from "@/lib/cardRender";
+import { Card3D } from "@/lib/card3d";
 import { downloadBlob, exportGif, exportVideo } from "@/lib/exporters";
 
 export default function CardPage() {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
-  const [distance, setDistance] = useState("");
-  const [pace, setPace] = useState("");
-  const [duration, setDuration] = useState("");
-  const [location, setLocation] = useState("");
-  const [runner, setRunner] = useState("");
-  const [ratio, setRatio] = useState<Ratio>("story");
-
-  const [ocrBusy, setOcrBusy] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState(0);
-  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ratio, setRatio] = useState<Ratio>("square");
   const [exporting, setExporting] = useState<null | "video" | "gif">(null);
 
-  const previewRef = useRef<HTMLCanvasElement>(null);
+  const holderRef = useRef<HTMLDivElement>(null);
 
-  // 최신 scene 을 ref로 유지 → 프리뷰 루프가 항상 최신값을 그림
-  const scene: Scene = { img, ratio, distance, pace, duration, location, runner };
-  const sceneRef = useRef(scene);
+  // 미리보기: Three.js 캔버스를 컨테이너에 붙이고 연속 회전
   useEffect(() => {
-    sceneRef.current = scene;
-  });
+    const holder = holderRef.current;
+    if (!holder || !img) return;
 
-  // 미리보기 루프 (4.2초 재생 + 약간 멈춤 후 반복)
-  useEffect(() => {
-    const canvas = previewRef.current;
-    if (!canvas) return;
     const { w, h } = PREVIEW_SIZE[ratio];
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const card = new Card3D(img, w, h);
+    card.setBackground(null); // 투명(뒤 체커보드가 비쳐 보임)
+    const el = card.domElement;
+    el.style.width = "100%";
+    el.style.height = "100%";
+    el.style.display = "block";
+    holder.appendChild(el);
 
     let raf = 0;
     const start = performance.now();
     const loop = (now: number) => {
-      const cycle = ((now - start) / 4200) % 1.3; // 1.0~1.3 구간은 정지(여운)
-      drawFrame(ctx, sceneRef.current, w, h, Math.min(1, cycle));
+      card.render(((now - start) / 4000) * Math.PI * 2);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [ratio]);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      holder.removeChild(el);
+      card.dispose();
+    };
+  }, [img, ratio]);
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -61,39 +48,19 @@ export default function CardPage() {
     const dataUrl = await fileToDataUrl(file);
     const image = await loadImage(dataUrl);
     setImg(image);
-
-    // 자동 인식
-    setOcrError(null);
-    setOcrBusy(true);
-    setOcrProgress(0);
-    try {
-      const { stats } = await runOcr(dataUrl, setOcrProgress);
-      if (stats.distance) setDistance(stats.distance);
-      if (stats.pace) setPace(stats.pace);
-      if (stats.duration) setDuration(stats.duration);
-      if (!stats.distance && !stats.pace && !stats.duration)
-        setOcrError("숫자를 못 찾았어요. 아래에서 직접 입력해 주세요.");
-    } catch (err) {
-      console.error(err);
-      setOcrError(
-        (err instanceof Error ? err.message : String(err)) ||
-          "이미지 인식에 실패했어요."
-      );
-    } finally {
-      setOcrBusy(false);
-    }
+    e.target.value = "";
   }
 
   async function handleExport(kind: "video" | "gif") {
     if (!img) return;
     setExporting(kind);
     try {
-      const base = `run_${distance || "card"}`;
+      const base = `run_spin_${ratio}`;
       if (kind === "video") {
-        const { blob, ext } = await exportVideo(sceneRef.current);
-        downloadBlob(blob, `${base}.${ext}`);
+        const { blob, ext } = await exportVideo(img, ratio);
+        downloadBlob(blob, `${base}_green.${ext}`);
       } else {
-        const blob = await exportGif(sceneRef.current);
+        const blob = await exportGif(img, ratio);
         downloadBlob(blob, `${base}.gif`);
       }
     } catch (err) {
@@ -108,25 +75,28 @@ export default function CardPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="mb-1 text-xl font-bold">🎬 기록 인증 카드</h1>
+      <h1 className="mb-1 text-xl font-bold">🎬 3D 회전 기록 카드</h1>
       <p className="mb-6 text-sm text-neutral-500">
-        Strava·NRC 기록 이미지를 올리면 숫자를 자동 인식하고, 애니메이션 영상/GIF로
-        만들어 줍니다. 모든 처리는 내 브라우저에서만 이뤄집니다.
+        배경이 투명한 기록 이미지(PNG)를 올리면 3D로 360° 연속 회전하는 영상/GIF를
+        만들어 줍니다. 다운로드해서 CapCut 등으로 내 사진·영상 위에 오버레이하세요.
+        모든 처리는 내 브라우저에서만 이뤄집니다.
       </p>
 
-      {/* 미리보기 */}
+      {/* 미리보기 (뒤 체커보드 = 투명 표시) */}
       <div className="mb-5 flex justify-center">
         <div
-          className="relative w-full overflow-hidden rounded-2xl bg-neutral-900 shadow-lg"
+          className="checkerboard relative w-full overflow-hidden rounded-2xl shadow-lg"
           style={{
             maxWidth: PREVIEW_SIZE[ratio].w,
             aspectRatio: `${PREVIEW_SIZE[ratio].w} / ${PREVIEW_SIZE[ratio].h}`,
           }}
         >
-          <canvas ref={previewRef} className="h-full w-full" />
+          <div ref={holderRef} className="absolute inset-0" />
           {!img && (
-            <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-neutral-400">
-              기록 이미지를 올리면 여기에 미리보기가 재생됩니다
+            <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-neutral-500">
+              투명 배경 기록 이미지(PNG)를 올리면
+              <br />
+              여기서 3D로 돌아갑니다
             </div>
           )}
         </div>
@@ -135,14 +105,14 @@ export default function CardPage() {
       {/* 비율 토글 */}
       <div className="mb-5 flex justify-center gap-2">
         <RatioButton
-          active={ratio === "story"}
-          onClick={() => setRatio("story")}
-          label="스토리 9:16"
-        />
-        <RatioButton
           active={ratio === "square"}
           onClick={() => setRatio("square")}
-          label="피드 1:1"
+          label="정사각 1:1"
+        />
+        <RatioButton
+          active={ratio === "story"}
+          onClick={() => setRatio("story")}
+          label="세로 9:16"
         />
       </div>
 
@@ -150,104 +120,53 @@ export default function CardPage() {
       <div className="mb-5 rounded-2xl border border-neutral-200 bg-white p-5">
         <label className="block">
           <span className="mb-2 block text-sm font-bold">
-            1. 기록 이미지 올리기
+            투명 배경 기록 이미지 올리기
           </span>
           <input
             type="file"
-            accept="image/*"
+            accept="image/png,image/*"
             onChange={onUpload}
             disabled={busy}
             className="block w-full text-sm text-neutral-500 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-2 file:text-sm"
           />
         </label>
-        {ocrBusy && (
-          <p className="mt-3 text-sm text-neutral-500">
-            숫자 인식 중… {Math.round(ocrProgress * 100)}%
-          </p>
-        )}
-        {ocrError && (
-          <p className="mt-3 break-all text-sm text-red-500">{ocrError}</p>
-        )}
-      </div>
-
-      {/* 입력 폼 (자동 인식 후 수정) */}
-      <div className="grid gap-4 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
-        <div className="sm:col-span-2 -mb-1 text-sm font-bold">
-          2. 기록 확인 · 수정{" "}
-          <span className="font-normal text-neutral-400">
-            (자동 인식이 틀리면 고쳐주세요)
-          </span>
-        </div>
-
-        <Field label="거리 (km)">
-          <input
-            value={distance}
-            onChange={(e) => setDistance(e.target.value)}
-            className="input"
-            placeholder="8.24"
-            inputMode="decimal"
-          />
-        </Field>
-
-        <Field label="페이스">
-          <input
-            value={pace}
-            onChange={(e) => setPace(e.target.value)}
-            className="input"
-            placeholder="5'32&quot;"
-          />
-        </Field>
-
-        <Field label="시간">
-          <input
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            className="input"
-            placeholder="45:30"
-          />
-        </Field>
-
-        <Field label="장소 (선택)">
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="input"
-            placeholder="한강 반포지구"
-          />
-        </Field>
-
-        <Field label="러너 이름 (선택)">
-          <input
-            value={runner}
-            onChange={(e) => setRunner(e.target.value)}
-            className="input"
-            placeholder="홍길동"
-          />
-        </Field>
+        <p className="mt-2 text-xs text-neutral-400">
+          배경이 투명한 PNG여야 깔끔하게 돕니다. (스트라바·NRC 캡처는 배경 지우기
+          앱으로 누끼 따서 올리세요)
+        </p>
       </div>
 
       {/* 내보내기 */}
-      <div className="mt-5 grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <button
-          onClick={() => handleExport("video")}
+          onClick={() => handleExport("gif")}
           disabled={!img || busy}
           className="rounded-xl py-3 font-bold text-white transition disabled:opacity-50"
           style={{ backgroundColor: crew.primary }}
         >
-          {exporting === "video" ? "영상 만드는 중…" : "🎬 동영상으로 저장"}
+          {exporting === "gif" ? "GIF 만드는 중…" : "투명 GIF 저장"}
         </button>
         <button
-          onClick={() => handleExport("gif")}
+          onClick={() => handleExport("video")}
           disabled={!img || busy}
           className="rounded-xl border border-neutral-300 py-3 font-bold text-neutral-800 transition hover:bg-neutral-50 disabled:opacity-50"
         >
-          {exporting === "gif" ? "GIF 만드는 중…" : "GIF로 저장"}
+          {exporting === "video" ? "영상 만드는 중…" : "🟩 영상 저장(크로마키)"}
         </button>
       </div>
 
-      <p className="mt-3 text-center text-xs text-neutral-400">
-        동영상은 인스타 스토리/릴스에, GIF는 어디서나 공유하기 좋아요
-      </p>
+      {/* 사용 안내 */}
+      <div className="mt-4 rounded-xl bg-neutral-100 p-4 text-xs leading-relaxed text-neutral-500">
+        <p className="mb-1 font-bold text-neutral-700">어디에 쓰나요?</p>
+        <p>
+          • <b>투명 GIF</b> — CapCut/인스타에 바로 오버레이. 간편하지만 색·테두리가
+          살짝 거칠어요.
+        </p>
+        <p>
+          • <b>영상(크로마키)</b> — 초록 배경 위에서 회전합니다. CapCut에서{" "}
+          <b>오버레이로 추가 → 크로마키</b>로 초록을 빼면 화질이 가장 깔끔해요.
+        </p>
+      </div>
     </div>
   );
 }
@@ -268,23 +187,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     image.onerror = reject;
     image.src = src;
   });
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-neutral-500">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
 }
 
 function RatioButton({

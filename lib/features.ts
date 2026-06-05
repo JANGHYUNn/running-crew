@@ -13,9 +13,9 @@ export interface Feature {
 export const features: Feature[] = [
   {
     href: "/card",
-    title: "기록 인증 카드",
+    title: "3D 회전 기록 카드",
     emoji: "🎬",
-    desc: "Strava·NRC 기록 이미지를 올리면 애니메이션 영상·GIF로 자동 변환",
+    desc: "투명 PNG 기록을 3D로 360° 회전시켜 영상·투명GIF로 (CapCut 오버레이용)",
     status: "hidden",
   },
   {

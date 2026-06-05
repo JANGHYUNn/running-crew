@@ -9,7 +9,9 @@ export default function SiteHeader() {
           <span className="text-xl">{crew.logoEmoji}</span>
           <span style={{ color: crew.primary }}>{crew.name}</span>
         </Link>
-        <span className="text-xs text-neutral-400">{crew.tagline}</span>
+        <span className="hidden text-xs text-neutral-400 sm:inline">
+          {crew.tagline}
+        </span>
       </div>
     </header>
   );

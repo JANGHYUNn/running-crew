@@ -5,6 +5,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  /* 모바일 가로/세로 전환 시 글자 자동 확대 방지 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
@@ -20,7 +26,8 @@ body {
   border-radius: 0.5rem;
   border: 1px solid var(--color-neutral-300, #d4d4d4);
   padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
+  /* 16px 미만이면 iOS가 포커스 시 화면을 확대함 → 16px 이상 고정 */
+  font-size: 16px;
   outline: none;
 }
 .input:focus {

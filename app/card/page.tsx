@@ -117,8 +117,11 @@ export default function CardPage() {
       {/* 미리보기 */}
       <div className="mb-5 flex justify-center">
         <div
-          className="relative overflow-hidden rounded-2xl bg-neutral-900 shadow-lg"
-          style={{ width: PREVIEW_SIZE[ratio].w, height: PREVIEW_SIZE[ratio].h }}
+          className="relative w-full overflow-hidden rounded-2xl bg-neutral-900 shadow-lg"
+          style={{
+            maxWidth: PREVIEW_SIZE[ratio].w,
+            aspectRatio: `${PREVIEW_SIZE[ratio].w} / ${PREVIEW_SIZE[ratio].h}`,
+          }}
         >
           <canvas ref={previewRef} className="h-full w-full" />
           {!img && (

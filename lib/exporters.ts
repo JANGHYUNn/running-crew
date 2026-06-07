@@ -1,76 +1,18 @@
-// 3D 회전 카드를 동영상(초록배경·크로마키용) 또는 투명 GIF 로 내보낸다. 전부 브라우저 처리.
-// 360°를 정확히 한 바퀴 돌려 GIF·영상이 이음새 없이 무한 반복된다.
+// 3D 회전 카드를 투명 GIF 로 내보낸다. 전부 브라우저 처리.
+// 360°를 정확히 한 바퀴 돌려 GIF 가 이음새 없이 무한 반복된다.
 
 import { GIFEncoder, quantize, applyPalette } from "gifenc";
 import { OUT_SIZE, type Ratio } from "./cardRender";
-import { Card3D, CHROMA_GREEN } from "./card3d";
+import { Card3D } from "./card3d";
+import {
+  drawDragFrame,
+  DRAG_DURATION_MS,
+  prescaleToWidth,
+  dragHeroWidth,
+} from "./dragRender";
 
 /** 한 바퀴(360°) 도는 데 걸리는 시간 */
 const ROTATION_MS = 4000;
-
-/** 브라우저가 지원하는 영상 코덱 선택. Safari→mp4, Chrome/FF→webm 경향. */
-function pickVideoMime(): string {
-  const candidates = [
-    "video/mp4;codecs=avc1.42E01E",
-    "video/mp4",
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/webm",
-  ];
-  for (const c of candidates) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(c))
-      return c;
-  }
-  return "video/webm";
-}
-
-function extOf(mime: string): string {
-  return mime.includes("mp4") ? "mp4" : "webm";
-}
-
-/** 초록 배경 위에서 회전하는 영상 → CapCut 등에서 크로마키로 초록을 빼 오버레이 */
-export async function exportVideo(
-  overlay: HTMLImageElement,
-  ratio: Ratio
-): Promise<{ blob: Blob; ext: string }> {
-  const { w, h } = OUT_SIZE[ratio];
-  const card = new Card3D(overlay, w, h);
-  card.setBackground(CHROMA_GREEN);
-
-  const mime = pickVideoMime();
-  const stream = card.domElement.captureStream(30);
-  const rec = new MediaRecorder(stream, {
-    mimeType: mime,
-    videoBitsPerSecond: 12_000_000,
-  });
-  const chunks: BlobPart[] = [];
-  rec.ondataavailable = (e) => {
-    if (e.data.size) chunks.push(e.data);
-  };
-  const stopped = new Promise<void>((res) => {
-    rec.onstop = () => res();
-  });
-
-  rec.start();
-  const start = performance.now();
-  await new Promise<void>((resolve) => {
-    function tick(now: number) {
-      const elapsed = now - start;
-      card.render((elapsed / ROTATION_MS) * Math.PI * 2);
-      if (elapsed < ROTATION_MS) {
-        requestAnimationFrame(tick);
-      } else {
-        rec.stop();
-        resolve();
-      }
-    }
-    requestAnimationFrame(tick);
-  });
-  await stopped;
-  card.dispose();
-
-  return { blob: new Blob(chunks, { type: mime }), ext: extOf(mime) };
-}
 
 /** 팔레트에서 완전 투명(alpha 0) 색의 인덱스 찾기 */
 function transparentIndexOf(palette: number[][]): number {
@@ -131,6 +73,64 @@ export async function exportGif(
   }
   enc.finish();
   card.dispose();
+
+  return new Blob([enc.bytes() as BlobPart], { type: "image/gif" });
+}
+
+/**
+ * 발도장 장면 GIF(투명 배경).
+ * GIF 투명도는 1비트(반투명 불가)라 정지된 기록의 글자 가장자리가 거칠어진다.
+ * 회전과 달리 정지 연출이라 그게 도드라지므로, 풀 해상도로 렌더해 가장자리를 잘게 만든다.
+ * (프레임 수는 fps를 낮춰 용량/인코딩 시간 균형)
+ */
+export async function exportDragGif(
+  overlay: HTMLImageElement,
+  ratio: Ratio,
+  fps = 14
+): Promise<Blob> {
+  const full = OUT_SIZE[ratio];
+  const w = full.w;
+  const h = full.h;
+
+  const cv = document.createElement("canvas");
+  cv.width = w;
+  cv.height = h;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("canvas 2d 컨텍스트를 만들 수 없습니다");
+
+  // 한 번에 크게 축소하면 글자가 뭉개지므로, 표시 폭 근처까지 단계적으로 미리 축소
+  const prepared = prescaleToWidth(
+    overlay,
+    Math.ceil(dragHeroWidth(overlay, w, h) * 1.15)
+  );
+
+  const enc = GIFEncoder();
+  const frames = Math.max(2, Math.round((DRAG_DURATION_MS / 1000) * fps));
+  const delay = Math.round(1000 / fps);
+
+  for (let i = 0; i < frames; i++) {
+    drawDragFrame(ctx, prepared, w, h, i / frames);
+    const { data } = ctx.getImageData(0, 0, w, h);
+
+    const palette = quantize(data, 256, {
+      format: "rgba4444",
+      oneBitAlpha: true,
+    });
+    const index = applyPalette(data, palette, "rgba4444");
+    const tIdx = transparentIndexOf(palette);
+    type FrameOpts = NonNullable<Parameters<typeof enc.writeFrame>[3]> & {
+      transparentIndex?: number;
+    };
+    const opts: FrameOpts = { palette, delay };
+    if (tIdx >= 0) {
+      opts.transparent = true;
+      opts.transparentIndex = tIdx;
+    }
+    enc.writeFrame(index, w, h, opts);
+
+    if (i % 2 === 0) await new Promise((res) => setTimeout(res));
+  }
+  enc.finish();
 
   return new Blob([enc.bytes() as BlobPart], { type: "image/gif" });
 }

@@ -1,13 +1,10 @@
 // 투명 스트라바 PNG를 3D 평면에 입혀 Y축으로 연속 회전시키는 렌더러(Three.js).
-// 미리보기·영상·GIF 가 이 Card3D 하나를 공유한다(해상도/배경만 다름).
+// 미리보기·GIF 가 이 Card3D 하나를 공유한다(해상도만 다름).
 //
 // 양면 카드: 같은 텍스처를 앞/뒤 두 면에 붙여(뒤는 180° 돌려) 글자가 양쪽 다
 // 바로 읽히게 한다. 평면이라 90°·270° 부근에서 얇아지는 건 실제 3D 회전의 자연스러운 모습.
 
 import * as THREE from "three";
-
-/** 크로마키용 초록(표준 그린스크린 톤) */
-export const CHROMA_GREEN = 0x00b140;
 
 export class Card3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -82,7 +79,7 @@ export class Card3D {
     this.camera.updateProjectionMatrix();
   }
 
-  /** 배경: null=투명, 숫자=불투명 색(영상 크로마키용) */
+  /** 배경: null=투명, 숫자=불투명 색 */
   setBackground(color: number | null) {
     if (color === null) this.renderer.setClearColor(0x000000, 0);
     else this.renderer.setClearColor(color, 1);

@@ -25,4 +25,11 @@ export const features: Feature[] = [
     desc: "조원이 기록을 올리면 조별 누적거리·순위를 자동 집계",
     status: "ready",
   },
+  {
+    href: "/me",
+    title: "크루 기록 통계",
+    emoji: "📊",
+    desc: "크루 전체·멤버별 누적·월별·주별 거리와 랭킹을 한눈에",
+    status: "ready",
+  },
 ];

@@ -1,6 +1,25 @@
 // 증빙 이미지 클라이언트 압축(업로드 용량 최소화 → 무료 Storage 유지).
 // 긴 변을 maxSize 로 줄이고 JPEG 로 인코딩. 투명 PNG(스트라바 공유 카드)는 흰 배경으로 평탄화.
 
+/** File → 파일 내용 sha256 16진 문자열(동일 이미지 중복 업로드 차단용) */
+export async function sha256Hex(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** File → data URL(미리보기·OCR 입력용) */
+export function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();

@@ -3,7 +3,7 @@
 const CACHE = "running-crew-v1";
 
 // 설치 즉시 활성화
-self.addEventListener("install", (event) => {
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 

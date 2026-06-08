@@ -69,3 +69,19 @@ export function formatKm(km: number): string {
     maximumFractionDigits: 1,
   });
 }
+
+/** "YYYY-MM-DD" → "YYYY-MM" (월별 집계 키) */
+export function monthKey(isoDate: string): string {
+  return isoDate.slice(0, 7);
+}
+
+/** "YYYY-MM-DD" → 그 주(월요일 시작)의 월요일 "YYYY-MM-DD" (주별 집계 키) */
+export function startOfWeekISO(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00`);
+  const day = d.getDay(); // 0=일 ~ 6=토
+  const diff = day === 0 ? 6 : day - 1; // 월요일까지 되돌릴 일수
+  d.setDate(d.getDate() - diff);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${dd}`;
+}

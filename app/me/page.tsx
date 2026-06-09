@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -37,7 +37,15 @@ import {
 import { runOcr } from "@/lib/ocr";
 import { compressImage, fileToDataUrl, sha256Hex } from "@/lib/image";
 import { uploadProof } from "@/lib/storage";
-import { formatDateDot, formatKm, todayISO } from "@/lib/format";
+import {
+  calcPace,
+  formatDateDot,
+  formatDuration,
+  formatKm,
+  startOfWeekISO,
+  todayISO,
+} from "@/lib/format";
+import { PacePicker } from "@/components/DurationPicker";
 import SupabaseNotice from "@/components/SupabaseNotice";
 
 export default function MePage() {
@@ -320,6 +328,7 @@ function UploadForm({
   onAdded: () => Promise<void>;
 }) {
   const [distance, setDistance] = useState("");
+  const [paceSec, setPaceSec] = useState(0); // 평균 페이스(초/km)
   const [runDate, setRunDate] = useState(todayISO());
   const [note, setNote] = useState("");
   const [ocrBusy, setOcrBusy] = useState(false);
@@ -336,6 +345,7 @@ function UploadForm({
     if (!file) return;
     setOcrError(null);
     setDistance("");
+    setPaceSec(0);
     setOcrBusy(true);
     setOcrProgress(0);
     try {
@@ -346,6 +356,9 @@ function UploadForm({
       const { stats } = await runOcr(dataUrl, setOcrProgress);
       if (stats.distance) setDistance(stats.distance);
       else setOcrError("거리 자동인식 실패 — 거리 칸에 직접 입력해 주세요.");
+      // 페이스 자동채움: OCR이 뽑은 "5'14\"" → 초. 러닝 범위(2:00~20:00/km) 밖이면 무시.
+      const pace = parsePaceToSeconds(stats.pace);
+      if (pace >= 120 && pace <= 1200) setPaceSec(pace);
     } catch (err) {
       console.error(err);
       setOcrError(
@@ -378,12 +391,15 @@ function UploadForm({
       await addPersonalRun({
         userId: user.id,
         distanceKm: km,
+        // 페이스(초/km) × 거리 = 소요시간. 평균페이스·최장시간 집계는 duration_sec 기반.
+        durationSec: paceSec > 0 ? Math.round(paceSec * km) : null,
         runDate,
         note: note.trim() || null,
         imageUrl,
         imageHash,
       });
       setDistance("");
+      setPaceSec(0);
       setNote("");
       setImageFile(null);
       setImagePreview(null);
@@ -413,16 +429,24 @@ function UploadForm({
         />
       </label>
 
-      <label className="mt-4 block">
-        <span className="mb-1 block text-xs font-medium text-neutral-500">거리 (km)</span>
-        <input
-          value={distance}
-          onChange={(e) => setDistance(e.target.value)}
-          className="input"
-          placeholder="8.24"
-          inputMode="decimal"
-        />
-      </label>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-neutral-500">거리 (km)</span>
+          <input
+            value={distance}
+            onChange={(e) => setDistance(e.target.value)}
+            className="input"
+            placeholder="8.24"
+            inputMode="decimal"
+          />
+        </label>
+        <div className="block">
+          <span className="mb-1 block text-xs font-medium text-neutral-500">
+            평균 페이스 <span className="text-neutral-400">(선택)</span>
+          </span>
+          <PacePicker paceSec={paceSec} onChange={setPaceSec} />
+        </div>
+      </div>
 
       <label className="mt-4 block">
         <span className="mb-1 block text-xs font-medium text-neutral-500">메모 (선택)</span>
@@ -581,6 +605,29 @@ function StatsExplorer({
         <StatCard label="총 러닝" value={String(stats.runCount)} unit="회" />
       </div>
 
+      {/* 기록 하이라이트 — 평균 페이스·최장 거리·최장 시간 */}
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <StatCard
+          label="평균 페이스"
+          value={stats.timedCount > 0 ? calcPace(1, stats.avgPaceSec) : "—"}
+          unit={stats.timedCount > 0 ? "/km" : ""}
+        />
+        <StatCard label="최장 거리" value={formatKm(stats.longestKm)} unit="km" />
+        <StatCard
+          label="최장 시간"
+          value={stats.longestDurationSec > 0 ? formatDuration(stats.longestDurationSec) : "—"}
+          unit=""
+        />
+      </div>
+      {stats.timedCount === 0 && stats.runCount > 0 && (
+        <p className="mt-2 text-xs text-neutral-400">
+          기록 추가 시 <b>시간</b>을 입력하면 평균 페이스·최장 시간이 집계돼요.
+        </p>
+      )}
+
+      {/* 활동 히트맵(잔디) */}
+      <ActivityHeatmap byDay={stats.byDay} />
+
       {/* 지표·기간 토글 */}
       <div className="mt-5 flex items-center justify-between gap-2">
         <Toggle
@@ -728,4 +775,139 @@ function mmLabel(key: string): string {
 /** 주 시작일 "2026-06-02" → "6/2" */
 function weekLabel(key: string): string {
   return `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
+}
+
+// ── 활동 히트맵(GitHub 잔디 스타일) ─────────────────────────
+const HEATMAP_WEEKS = 53; // 최근 약 1년
+const CELL = 12; // 칸 크기(px)
+const GAP = 3; // 칸 간격(px)
+
+function ActivityHeatmap({ byDay }: { byDay: Record<string, number> }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  // 마운트 시 최근(오른쪽)이 보이도록 스크롤
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, []);
+
+  // 이번 주 월요일부터 (HEATMAP_WEEKS-1)주 전 월요일까지가 그리드의 시작
+  const firstMonday = addDaysISO(startOfWeekISO(todayISO()), -7 * (HEATMAP_WEEKS - 1));
+  const today = todayISO();
+
+  // 주(열) 단위. 각 주는 월~일 7일.
+  const weeks = Array.from({ length: HEATMAP_WEEKS }, (_, w) => {
+    const monday = addDaysISO(firstMonday, w * 7);
+    const days = Array.from({ length: 7 }, (_, d) => addDaysISO(monday, d));
+    return { monday, days };
+  });
+
+  const activeDays = Object.values(byDay).filter((v) => v > 0).length;
+  const totalKm = Object.values(byDay).reduce((a, b) => a + b, 0);
+
+  return (
+    <section className="mt-6">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h3 className="text-sm font-bold text-neutral-600">🔥 활동 히트맵</h3>
+        <span className="text-xs text-neutral-400">
+          최근 1년 · <span className="tnum">{activeDays}</span>일 ·{" "}
+          <span className="tnum">{formatKm(totalKm)}</span> km
+        </span>
+      </div>
+
+      <div ref={scroller} className="overflow-x-auto pb-1">
+        <div className="inline-flex flex-col gap-1">
+          {/* 월 라벨 */}
+          <div className="flex" style={{ gap: GAP, paddingLeft: 22 }}>
+            {weeks.map((wk, i) => {
+              const prevMonth = i > 0 ? weeks[i - 1].monday.slice(5, 7) : "";
+              const month = wk.monday.slice(5, 7);
+              const show = month !== prevMonth;
+              return (
+                <div
+                  key={wk.monday}
+                  className="whitespace-nowrap text-[10px] text-neutral-400"
+                  style={{ width: CELL }}
+                >
+                  {show ? `${Number(month)}월` : ""}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 요일 라벨 + 칸 그리드 */}
+          <div className="flex" style={{ gap: GAP }}>
+            <div className="flex flex-col" style={{ gap: GAP, width: 22 - GAP }}>
+              {["월", "", "수", "", "금", "", ""].map((label, d) => (
+                <span
+                  key={d}
+                  className="text-right text-[9px] leading-none text-neutral-400"
+                  style={{ height: CELL, lineHeight: `${CELL}px` }}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+
+            {weeks.map((wk) => (
+              <div key={wk.monday} className="flex flex-col" style={{ gap: GAP }}>
+                {wk.days.map((date) => {
+                  const future = date > today;
+                  const km = byDay[date] ?? 0;
+                  return (
+                    <div
+                      key={date}
+                      title={future ? undefined : `${formatDateDot(date)} · ${formatKm(km)} km`}
+                      style={{
+                        width: CELL,
+                        height: CELL,
+                        borderRadius: 2,
+                        backgroundColor: future ? "transparent" : heatColor(km),
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 범례 */}
+      <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-neutral-400">
+        <span>적음</span>
+        {[0, 2.9, 5.9, 9.9, 15].map((km) => (
+          <span
+            key={km}
+            style={{ width: CELL, height: CELL, borderRadius: 2, backgroundColor: heatColor(km) }}
+          />
+        ))}
+        <span>많음</span>
+      </div>
+    </section>
+  );
+}
+
+/** 하루 누적 거리(km) → 잔디 색(crew.primary 농도 4단계) */
+function heatColor(km: number): string {
+  if (km <= 0) return "#ebedf0";
+  if (km < 3) return `${crew.primary}40`;
+  if (km < 6) return `${crew.primary}73`;
+  if (km < 10) return `${crew.primary}b3`;
+  return crew.primary;
+}
+
+/** OCR 페이스 문자열("5'14\"" 또는 "5:14") → 초/km */
+function parsePaceToSeconds(pace?: string): number {
+  if (!pace) return 0;
+  const m = pace.match(/(\d{1,2})\s*['′:]\s*(\d{1,2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}
+
+/** "YYYY-MM-DD" 에 days 일 더한 ISO 날짜 */
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${dd}`;
 }

@@ -17,6 +17,8 @@ export interface PersonalRun {
   id: string;
   user_id: string;
   distance_km: number;
+  /** 소요 시간(초). 입력 안 한 기록은 null → 페이스·최장시간 집계에서 제외 */
+  duration_sec: number | null;
   run_date: string;
   note: string | null;
   image_url: string | null;
@@ -67,6 +69,7 @@ export async function listMyRuns(userId: string): Promise<PersonalRun[]> {
 export async function addPersonalRun(input: {
   userId: string;
   distanceKm: number;
+  durationSec?: number | null;
   runDate: string;
   note?: string | null;
   imageUrl?: string | null;
@@ -78,6 +81,7 @@ export async function addPersonalRun(input: {
       .insert({
         user_id: input.userId,
         distance_km: input.distanceKm,
+        duration_sec: input.durationSec ?? null,
         run_date: input.runDate,
         note: input.note ?? null,
         image_url: input.imageUrl ?? null,
@@ -122,6 +126,16 @@ export interface StatsSummary {
   runCount: number;
   monthly: Bucket[]; // 오래된→최근
   weekly: Bucket[]; // 오래된→최근
+  /** 평균 페이스(초/km). 시간 입력된 기록들의 (총시간/총거리). 없으면 0 */
+  avgPaceSec: number;
+  /** 최장 거리(km) */
+  longestKm: number;
+  /** 최장 시간(초). 시간 입력된 기록 중 최대. 없으면 0 */
+  longestDurationSec: number;
+  /** 시간이 입력된 기록 수(평균 페이스·최장 시간의 표본) */
+  timedCount: number;
+  /** 날짜별 누적 거리(히트맵용) "YYYY-MM-DD" → km */
+  byDay: Record<string, number>;
 }
 
 function bucketize(
@@ -148,11 +162,26 @@ export function summarizeStats(runs: PersonalRun[]): StatsSummary {
   let total = 0;
   let thisMonth = 0;
   let thisWeek = 0;
+  let longestKm = 0;
+  let longestDurationSec = 0;
+  let timedDist = 0; // 시간 입력된 기록의 거리 합
+  let timedSec = 0; // 시간 입력된 기록의 시간 합
+  let timedCount = 0;
+  const byDay: Record<string, number> = {};
   for (const r of runs) {
     const km = Number(r.distance_km);
     total += km;
     if (monthKey(r.run_date) === curMonth) thisMonth += km;
     if (startOfWeekISO(r.run_date) === curWeek) thisWeek += km;
+    if (km > longestKm) longestKm = km;
+    byDay[r.run_date] = (byDay[r.run_date] ?? 0) + km;
+    const sec = r.duration_sec;
+    if (sec && sec > 0) {
+      timedDist += km;
+      timedSec += sec;
+      timedCount += 1;
+      if (sec > longestDurationSec) longestDurationSec = sec;
+    }
   }
 
   return {
@@ -162,6 +191,11 @@ export function summarizeStats(runs: PersonalRun[]): StatsSummary {
     runCount: runs.length,
     monthly: bucketize(runs, (r) => monthKey(r.run_date)),
     weekly: bucketize(runs, (r) => startOfWeekISO(r.run_date)),
+    avgPaceSec: timedDist > 0 ? timedSec / timedDist : 0,
+    longestKm,
+    longestDurationSec,
+    timedCount,
+    byDay,
   };
 }
 

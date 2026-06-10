@@ -49,7 +49,11 @@ create index if not exists idx_runs_member   on runs(member_id);
 create index if not exists idx_runs_date     on runs(run_date);
 create index if not exists idx_runs_hash     on runs(image_hash);
 
--- ── RLS: anon 전체 허용(신뢰 그룹 전제) ────────────────────
+-- ── RLS: 전체 허용(신뢰 그룹 전제) ─────────────────────────
+-- ⚠️ anon 뿐 아니라 authenticated 도 허용해야 한다.
+-- 카카오 로그인(/me)을 한 사용자는 요청 역할이 anon → authenticated 로 바뀌므로,
+-- to anon 으로만 두면 로그인한 사람은 RLS 위반("new row violates row-level
+-- security policy")이 난다. 그래서 두 역할 모두에 정책을 건다.
 alter table seasons enable row level security;
 alter table teams   enable row level security;
 alter table members enable row level security;
@@ -62,7 +66,7 @@ begin
   foreach t in array array['seasons','teams','members','runs'] loop
     execute format('drop policy if exists %I_all on %I', t, t);
     execute format(
-      'create policy %I_all on %I for all to anon using (true) with check (true)',
+      'create policy %I_all on %I for all to anon, authenticated using (true) with check (true)',
       t, t);
   end loop;
 end $$;

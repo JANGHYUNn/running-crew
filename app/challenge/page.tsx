@@ -32,7 +32,7 @@ export default function ChallengePage() {
   const [openMember, setOpenMember] = useState<Set<string>>(new Set());
   const [memberRuns, setMemberRuns] = useState<Record<string, Run[]>>({});
 
-  // 시즌 목록 로드(1개면 자동 진입, 여러 개면 선택 화면)
+  // 시즌 목록 로드(개수와 무관하게 항상 선택 화면을 먼저 보여준다)
   useEffect(() => {
     if (!supabaseReady) return;
     let alive = true;
@@ -41,7 +41,6 @@ export default function ChallengePage() {
         const list = await listSeasons();
         if (!alive) return;
         setSeasons(list);
-        if (list.length === 1) setSeasonId(list[0].id);
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : "불러오기 실패");
       } finally {
@@ -133,7 +132,7 @@ export default function ChallengePage() {
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="mb-4 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          {seasonId && seasons.length > 1 && (
+          {seasonId && (
             <button
               onClick={() => setSeasonId("")}
               className="mb-1 text-sm text-neutral-400"

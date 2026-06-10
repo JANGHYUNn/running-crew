@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { crew } from "@/lib/crew";
 import { features } from "@/lib/features";
+import InstallGuide from "@/components/InstallGuide";
 
 export default function Home() {
   return (
@@ -10,6 +11,8 @@ export default function Home() {
         <h1 className="text-2xl font-bold">{crew.name} Crew</h1>
         <p className="mt-2 text-neutral-500">{crew.tagline}</p>
       </section>
+
+      <InstallGuide />
 
       <div className="mx-auto grid max-w-sm gap-3">
         {features

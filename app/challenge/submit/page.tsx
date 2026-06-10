@@ -175,10 +175,7 @@ export default function SubmitPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <Link href="/challenge" className="text-sm text-neutral-400">
-        ← 리더보드
-      </Link>
-      <h1 className="mb-1 mt-2 text-xl font-bold">🏃 기록 제출</h1>
+      <h1 className="mb-1 text-xl font-bold">🏃 기록 제출</h1>
       {season ? (
         <p className="mb-6 text-sm text-neutral-500">
           {season.name} · {formatDateDot(season.start_date)}~

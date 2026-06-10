@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { crew } from "@/lib/crew";
 import { supabaseReady } from "@/lib/supabase";
 import {
@@ -213,10 +212,7 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <Link href="/challenge" className="text-sm text-neutral-400">
-        ← 리더보드
-      </Link>
-      <h1 className="mb-6 mt-2 text-xl font-bold">⚙️ 시즌 · 조 관리</h1>
+      <h1 className="mb-6 text-xl font-bold">⚙️ 시즌 · 조 관리</h1>
 
       {loading && <p className="py-10 text-center text-neutral-400">불러오는 중…</p>}
 

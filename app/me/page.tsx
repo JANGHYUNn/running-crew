@@ -522,26 +522,32 @@ function StatCard({
   value,
   unit,
   accent,
+  dense,
 }: {
   label: string;
   value: string;
   unit: string;
   accent?: boolean;
+  // dense: 좁은 칸(3열 등)에서 긴 값(예: "1:23:45")이 칸을 넘지 않도록
+  //        뷰포트 기반 clamp 로 글자 크기를 줄임. 모바일 우선.
+  dense?: boolean;
 }) {
   return (
     <div
-      className="rounded-2xl border border-neutral-200 bg-white p-4"
+      className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4"
       style={accent ? { borderColor: crew.primary } : undefined}
     >
-      <p className="text-xs text-neutral-400">{label}</p>
-      <p className="mt-1">
+      <p className="truncate text-xs text-neutral-400">{label}</p>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-1 leading-tight">
         <span
-          className="tnum text-2xl font-extrabold"
+          className={`tnum font-extrabold ${
+            dense ? "text-[clamp(0.85rem,4.6vw,1.5rem)]" : "text-2xl"
+          }`}
           style={accent ? { color: crew.primary } : undefined}
         >
           {value}
         </span>
-        <span className="ml-1 text-xs text-neutral-400">{unit}</span>
+        <span className="text-xs text-neutral-400">{unit}</span>
       </p>
     </div>
   );
@@ -608,12 +614,14 @@ function StatsExplorer({
       {/* 기록 하이라이트 — 평균 페이스·최장 거리·최장 시간 */}
       <div className="mt-3 grid grid-cols-3 gap-3">
         <StatCard
+          dense
           label="평균 페이스"
           value={stats.timedCount > 0 ? calcPace(1, stats.avgPaceSec) : "—"}
           unit={stats.timedCount > 0 ? "/km" : ""}
         />
-        <StatCard label="최장 거리" value={formatKm(stats.longestKm)} unit="km" />
+        <StatCard dense label="최장 거리" value={formatKm(stats.longestKm)} unit="km" />
         <StatCard
+          dense
           label="최장 시간"
           value={stats.longestDurationSec > 0 ? formatDuration(stats.longestDurationSec) : "—"}
           unit=""

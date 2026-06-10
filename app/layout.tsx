@@ -4,6 +4,7 @@ import "./globals.css";
 import SiteHeader from "@/components/SiteHeader";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import SplashScreen from "@/components/SplashScreen";
+import AppleSplashLinks from "@/components/AppleSplashLinks";
 import { crew } from "@/lib/crew";
 
 const geistSans = Geist({
@@ -47,6 +48,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
+        <AppleSplashLinks />
         <SplashScreen />
         <ServiceWorkerRegister />
         <SiteHeader />

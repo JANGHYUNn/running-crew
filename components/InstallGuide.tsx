@@ -96,39 +96,62 @@ export default function InstallGuide() {
       </div>
 
       {platform === "ios" ? (
-        <ol className="mt-4 space-y-3">
-          <Step n={1}>
-            하단 <ShareIcon /> <b>공유</b> 버튼을 누르세요
-          </Step>
-          <Step n={2}>
-            메뉴에서 <PlusIcon /> <b>“홈 화면에 추가”</b> 를 선택
-          </Step>
-          <Step n={3}>
-            오른쪽 위 <b>“추가”</b> 를 누르면 끝! 🎉
-          </Step>
-          <p className="pl-9 text-xs text-neutral-400">
-            ※ Safari 브라우저에서만 가능해요. (다른 앱에서 열었다면 Safari 로 열어주세요)
-          </p>
-        </ol>
-      ) : deferred ? (
-        <button
-          onClick={install}
-          className="mt-4 w-full rounded-xl py-3 text-sm font-bold text-white"
-          style={{ backgroundColor: crew.primary }}
-        >
-          홈 화면에 추가하기
-        </button>
+        <>
+          <p className="mt-3 text-xs font-medium text-neutral-400">🍎 아이폰 (Safari)</p>
+          <ol className="mt-2 space-y-3">
+            <Step n={1}>
+              화면 하단(또는 상단)의 <ShareIcon /> <b>공유</b> 버튼을 누르세요
+            </Step>
+            <Step n={2}>
+              메뉴를 위로 올려 <PlusIcon /> <b>“홈 화면에 추가”</b> 를 누르세요
+            </Step>
+            <Step n={3}>
+              오른쪽 위 <b>“추가”</b> 를 누르면 끝! 홈 화면에 {crew.name} 아이콘이 생겨요 🎉
+            </Step>
+          </ol>
+          <Caveat>
+            ⚠️ <b>Safari</b> 에서만 됩니다. 카카오톡·인스타 등 <b>인앱 브라우저</b>로 열렸다면{" "}
+            <b>“Safari로 열기”</b>(우측 하단·메뉴) 를 먼저 누른 뒤 진행하세요.
+          </Caveat>
+        </>
       ) : (
-        <ol className="mt-4 space-y-3">
-          <Step n={1}>
-            오른쪽 위 <MenuIcon /> <b>메뉴</b> 를 누르세요
-          </Step>
-          <Step n={2}>
-            <b>“앱 설치”</b> 또는 <b>“홈 화면에 추가”</b> 를 선택하면 끝! 🎉
-          </Step>
-        </ol>
+        <>
+          <p className="mt-3 text-xs font-medium text-neutral-400">🤖 안드로이드 (Chrome)</p>
+          {deferred && (
+            <button
+              onClick={install}
+              className="mt-2 w-full rounded-xl py-3 text-sm font-bold text-white"
+              style={{ backgroundColor: crew.primary }}
+            >
+              ⬇️ 한 번에 홈 화면에 추가하기
+            </button>
+          )}
+          <ol className="mt-2 space-y-3">
+            <Step n={1}>
+              오른쪽 위 <MenuIcon /> <b>메뉴</b> 를 누르세요
+            </Step>
+            <Step n={2}>
+              <b>“앱 설치”</b> 또는 <b>“홈 화면에 추가”</b> 를 누르세요
+            </Step>
+            <Step n={3}>
+              <b>“설치”</b> 를 누르면 끝! 홈 화면에 {crew.name} 아이콘이 생겨요 🎉
+            </Step>
+          </ol>
+          <Caveat>
+            ⚠️ 카카오톡 등 <b>인앱 브라우저</b>면 메뉴에서 <b>“다른 브라우저로 열기”</b> → Chrome
+            으로 연 뒤 진행하세요.
+          </Caveat>
+        </>
       )}
     </section>
+  );
+}
+
+function Caveat({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-700">
+      {children}
+    </p>
   );
 }
 

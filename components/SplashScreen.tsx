@@ -7,19 +7,20 @@
 import { useEffect, useState } from "react";
 import { crew } from "@/lib/crew";
 
-const SESSION_KEY = "splash_shown";
-
 export default function SplashScreen() {
   const [show, setShow] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
+    const force = new URLSearchParams(window.location.search).has("splash"); // 테스트용 강제 표시
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    if (!standalone) return;
-    if (sessionStorage.getItem(SESSION_KEY) === "1") return;
-    sessionStorage.setItem(SESSION_KEY, "1");
+    // 앱 내부 이동(같은 출처에서 온 전체 페이지 로드)이면 스플래시 생략 → 콜드 실행에서만.
+    const internalNav =
+      !!document.referrer && document.referrer.startsWith(window.location.origin);
+
+    if (!force && (!standalone || internalNav)) return;
 
     queueMicrotask(() => setShow(true)); // 동기 setState 회피
     const tLeave = setTimeout(() => setLeaving(true), 1400); // 페이드아웃 시작

@@ -12,20 +12,6 @@ export interface Feature {
 
 export const features: Feature[] = [
   {
-    href: "/pace",
-    title: "목표 기록 페이스 전략",
-    emoji: "🎯",
-    desc: "목표 거리·시간을 넣으면 구간별 통과 페이스·전략을 자동으로 짜줘요",
-    status: "ready",
-  },
-  {
-    href: "/card",
-    title: "3D 회전 기록 카드",
-    emoji: "🎬",
-    desc: "투명 PNG 기록을 3D로 360° 회전시켜 영상·투명GIF로 (CapCut 오버레이용)",
-    status: "hidden",
-  },
-  {
     href: "/challenge",
     title: "조별 누적거리 챌린지",
     emoji: "🏆",
@@ -38,5 +24,19 @@ export const features: Feature[] = [
     emoji: "📊",
     desc: "크루 전체·멤버별 누적·월별·주별 거리와 랭킹을 한눈에",
     status: "ready",
+  },
+  {
+    href: "/pace",
+    title: "목표 기록 페이스 전략",
+    emoji: "🎯",
+    desc: "목표 거리·시간을 넣으면 구간별 통과 페이스·전략을 자동으로 짜줘요",
+    status: "ready",
+  },
+  {
+    href: "/card",
+    title: "3D 회전 기록 카드",
+    emoji: "🎬",
+    desc: "투명 PNG 기록을 3D로 360° 회전시켜 영상·투명GIF로 (CapCut 오버레이용)",
+    status: "hidden",
   },
 ];

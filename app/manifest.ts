@@ -16,8 +16,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: crew.tagline,
     start_url: "/",
     display: "standalone", // 주소창 없이 앱처럼
-    // 설치형 앱 실행 스플래시 배경 = 브랜드 빨강(인앱 애니메이션 스플래시와 이음새 제거)
-    background_color: crew.primary,
+    // 설치형 앱 실행 스플래시 배경 = 검정 계열(인앱 로고 드로잉 스플래시와 이음새 제거)
+    background_color: crew.accent,
     theme_color: crew.primary,
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },

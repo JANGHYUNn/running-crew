@@ -36,88 +36,101 @@ body {
     -10px 0;
 }
 
-/* ── 설치형 앱(standalone) 실행 시 인앱 애니메이션 스플래시 ─────────
-   OS 정지 스플래시(빨강) → 이 오버레이(빨강)로 이음새 없이 이어진 뒤 페이드아웃.
-   브랜딩 색은 컴포넌트에서 인라인으로 주입(crew.primary). */
+/* ── 설치형 앱(standalone) 실행 시 인앱 "로고 드로잉" 스플래시 ─────────
+   표시/제거는 SplashScreen 의 인라인 스크립트가 html[data-splash] 로 제어한다.
+   (페인트 전에 실행 → 첫 프레임부터 덮어 메인페이지 깜빡임 없음) */
 @media (display-mode: standalone) {
-  /* 부팅~오버레이 마운트 사이 밝은 배경 깜빡임 줄이기 */
+  /* 부팅~스플래시 사이 배경을 스플래시와 같은 검정으로 → 깜빡임 제거 */
   html {
-    background: #ff4d2e;
+    background: #1a1a1a;
   }
 }
 .splash {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: flex;
-  flex-direction: column;
+  display: none; /* 기본 숨김. data-splash 가 켜질 때만 표시 */
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  opacity: 1;
-  transition: opacity 0.45s ease;
 }
-.splash--leaving {
+html[data-splash="on"] .splash,
+html[data-splash="leaving"] .splash {
+  display: flex;
+}
+html[data-splash="leaving"] .splash {
   opacity: 0;
+  transition: opacity 0.45s ease;
   pointer-events: none;
 }
-.splash__logo {
-  color: #fff;
-  font-size: clamp(3rem, 18vw, 5rem);
+.splash__art {
+  width: min(72vw, 320px);
+  height: auto;
+  overflow: visible;
+}
+/* "11.1K" — 획이 그려진 뒤 채워짐 */
+.splash__name {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 64px;
   font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  animation: splashPop 0.7s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  letter-spacing: -3px;
+  fill: transparent;
+  stroke: #fff;
+  stroke-width: 1.4;
+  stroke-dasharray: 540;
+  stroke-dashoffset: 540;
+  animation:
+    splashDraw 1s ease forwards,
+    splashFill 0.45s ease 0.9s forwards;
 }
-.splash__runners {
-  font-size: clamp(1.5rem, 9vw, 2.5rem);
-  animation: splashRun 0.9s ease-out 0.15s both;
+/* 스우시(스피드 라인) — 좌→우로 그려짐 */
+.splash__swoosh {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: splashDraw 0.7s ease 0.15s forwards;
 }
-.splash__tagline {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 0.875rem;
-  animation: splashFade 0.6s ease-out 0.5s both;
+/* 부제 — 마지막에 페이드인 */
+.splash__sub {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  fill: rgba(255, 255, 255, 0.75);
+  opacity: 0;
+  animation: splashFadeIn 0.5s ease 1.15s forwards;
 }
-@keyframes splashPop {
-  0% {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-@keyframes splashRun {
-  0% {
-    opacity: 0;
-    transform: translateX(-2rem);
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0);
+@keyframes splashDraw {
+  to {
+    stroke-dashoffset: 0;
   }
 }
-@keyframes splashFade {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
+@keyframes splashFill {
+  to {
+    fill: #fff;
   }
+}
+@keyframes splashFadeIn {
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .splash__logo,
-  .splash__runners,
-  .splash__tagline {
+  .splash__name {
+    fill: #fff;
+    stroke: none;
+  }
+  .splash__swoosh {
+    stroke-dashoffset: 0;
+  }
+  .splash__sub {
+    opacity: 1;
+  }
+  .splash__name,
+  .splash__swoosh,
+  .splash__sub {
     animation: none;
   }
 }

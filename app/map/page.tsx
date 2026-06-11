@@ -127,7 +127,7 @@ export default function MapPage() {
       ) : !connected ? (
         <CenterCard>
           <p className="text-sm text-neutral-600">
-            intervals.icu 를 연동하면 내가 달린 만큼 땅을 점령해요. (가민을 icu 에 연결해 두면 끝)
+            연동하면 달린 만큼 지도에 내 땅이 칠해져요.
           </p>
           {!icuConfigured && (
             <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-700 ring-1 ring-amber-200">
@@ -140,7 +140,7 @@ export default function MapPage() {
             className="mt-4 rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40"
             style={{ backgroundColor: crew.primary }}
           >
-            intervals.icu 연동하기
+            연동하기
           </button>
         </CenterCard>
       ) : !mapboxConfigured ? (
@@ -159,7 +159,7 @@ export default function MapPage() {
           {/* 상단 떠있는 상태칩 / 에러 토스트 */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 p-3">
             <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-green-700 shadow-sm ring-1 ring-black/5 backdrop-blur">
-              ✓ 자동 점령 중 (가민 → intervals.icu)
+              ✓ 자동 점령 중
             </span>
             {error && (
               <p className="pointer-events-auto rounded-xl bg-red-600/95 px-4 py-2 text-sm text-white shadow">
@@ -216,7 +216,7 @@ export default function MapPage() {
               </div>
             ) : (
               <p className="mt-4 rounded-xl bg-neutral-100 p-3 text-center text-sm text-neutral-500">
-                아직 점령된 땅이 없어요. 가민으로 한 번 달리면 분석 완료 후 자동으로 칠해집니다.
+                아직 점령된 땅이 없어요. 한 번 달리면 자동으로 칠해져요.
               </p>
             )}
           </BottomSheet>

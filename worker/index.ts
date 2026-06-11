@@ -10,7 +10,7 @@
 //   - SUPABASE_SERVICE_ROLE_KEY:  npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY  (절대 비밀!)
 //   - ICU_WEBHOOK_SECRET:         npx wrangler secret put ICU_WEBHOOK_SECRET
 //     → icu /settings → Manage App 의 webhook secret 과 동일 값으로. event 는 ACTIVITY_ANALYZED 활성화.
-import { routeToCells } from "../lib/territory";
+import { routeToTerritory } from "../lib/territory";
 
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
@@ -141,7 +141,8 @@ async function handleActivity(ev: IcuEvent, env: Env): Promise<void> {
   if (!tok) return; // 우리 앱에 연동 안 된 athlete → 무시
 
   const coords = await fetchRouteCoords(activityId, tok.access_token);
-  const payload = [...routeToCells(coords).values()].map((c) => ({
+  // 경로 → 점령 셀(버퍼 밴드 + 닫힌 루프 내부 채움).
+  const payload = [...routeToTerritory(coords).values()].map((c) => ({
     k: `${c.x}_${c.y}`,
     x: c.x,
     y: c.y,

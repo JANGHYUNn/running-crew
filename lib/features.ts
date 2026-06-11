@@ -27,9 +27,9 @@ export const features: Feature[] = [
   },
   {
     href: "/map",
-    title: "크루 여정 지도",
-    emoji: "🗺️",
-    desc: "intervals.icu 활동 경로를 지도에 모아 크루의 발자취를 그려요",
+    title: "크루 땅따먹기",
+    emoji: "🚩",
+    desc: "달린 경로로 지도에 내 땅을 칠하고, 크루끼리 영역을 뺏어요",
     status: "ready",
   },
   {

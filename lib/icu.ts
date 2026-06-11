@@ -92,21 +92,19 @@ async function callTokenEndpoint(payload: Record<string, string>): Promise<Token
 /** 콜백의 code 를 토큰으로 교환해 저장 */
 export async function exchangeAndStore(code: string): Promise<void> {
   const t = await callTokenEndpoint({ code, redirect_uri: redirectUri() });
-  await storeToken(t, null);
+  await storeToken(t);
 }
 
-async function storeToken(t: TokenResponse, prevRefresh: string | null): Promise<void> {
+async function storeToken(t: TokenResponse): Promise<void> {
   const userId = await currentUserId();
-  const refresh = t.refresh_token ?? prevRefresh; // refresh 응답에 새 refresh 가 없으면 기존 유지
-  if (!refresh) throw new Error("refresh token 이 없습니다.");
-  const expiresAt = new Date(Date.now() + (t.expires_in ?? 0) * 1000).toISOString();
+  // intervals.icu 는 refresh token 을 쓰지 않고 장수명 access token 만 발급한다.
+  // (재인증할 때마다 새 access token 이 발급돼 기존 토큰을 대체)
+  if (!t.access_token) throw new Error("access token 이 없습니다.");
   const { error } = await sb()
     .from("icu_tokens")
     .upsert({
       user_id: userId,
       access_token: t.access_token,
-      refresh_token: refresh,
-      expires_at: expiresAt,
       athlete_id: t.athlete_id ?? t.athlete?.id ?? null,
       scope: t.scope ?? null,
       updated_at: new Date().toISOString(),
@@ -116,8 +114,6 @@ async function storeToken(t: TokenResponse, prevRefresh: string | null): Promise
 
 interface StoredToken {
   access_token: string;
-  refresh_token: string;
-  expires_at: string;
   athlete_id: string | null;
 }
 
@@ -126,7 +122,7 @@ export async function getIcuConnection(): Promise<StoredToken | null> {
   const userId = await currentUserId();
   const { data, error } = await sb()
     .from("icu_tokens")
-    .select("access_token, refresh_token, expires_at, athlete_id")
+    .select("access_token, athlete_id")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -140,16 +136,12 @@ export async function disconnectIcu(): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-/** 만료 임박(60초 이내) 시 refresh, 유효한 토큰 반환 */
+/** 저장된 토큰 반환. intervals.icu access token 은 장수명이라 갱신 로직이 없다.
+ *  (만료/철회 시 API 가 401 → icuGet 에서 재연동 안내) */
 async function getValidToken(): Promise<StoredToken> {
   const tok = await getIcuConnection();
   if (!tok) throw new Error("intervals.icu 연동이 필요합니다.");
-  if (new Date(tok.expires_at).getTime() - Date.now() > 60_000) return tok;
-  const t = await callTokenEndpoint({ refresh_token: tok.refresh_token });
-  await storeToken(t, tok.refresh_token);
-  const refreshed = await getIcuConnection();
-  if (!refreshed) throw new Error("토큰 갱신 후 조회 실패");
-  return refreshed;
+  return tok;
 }
 
 // ── icu API 호출 ────────────────────────────────────────
@@ -158,6 +150,9 @@ async function icuGet<T>(path: string): Promise<T> {
   const res = await fetch(`${ICU_API}${path}`, {
     headers: { Authorization: `Bearer ${tok.access_token}` },
   });
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("intervals.icu 연동이 만료되었어요. 연동을 해제하고 다시 연결해 주세요.");
+  }
   if (!res.ok) throw new Error(`intervals.icu API 오류 (${res.status})`);
   return res.json();
 }

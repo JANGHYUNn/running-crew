@@ -8,6 +8,7 @@
 //
 // client_secret 교환만 Cloudflare Worker(/api/icu/token, 같은 도메인)가 담당해 secret 을 은닉한다.
 import { getSupabase } from "@/lib/supabase";
+import { nicknameOf } from "@/lib/auth";
 
 const ICU_AUTHORIZE = "https://intervals.icu/oauth/authorize";
 const ICU_API = "https://intervals.icu/api/v1";
@@ -96,17 +97,20 @@ export async function exchangeAndStore(code: string): Promise<void> {
 }
 
 async function storeToken(t: TokenResponse): Promise<void> {
-  const userId = await currentUserId();
+  const { data } = await sb().auth.getUser();
+  if (!data.user) throw new Error("먼저 카카오 로그인이 필요합니다.");
   // intervals.icu 는 refresh token 을 쓰지 않고 장수명 access token 만 발급한다.
   // (재인증할 때마다 새 access token 이 발급돼 기존 토큰을 대체)
   if (!t.access_token) throw new Error("access token 이 없습니다.");
+  // display_name 을 함께 저장 → 웹훅 점령(서버) 때 owner_name 으로 쓴다.
   const { error } = await sb()
     .from("icu_tokens")
     .upsert({
-      user_id: userId,
+      user_id: data.user.id,
       access_token: t.access_token,
       athlete_id: t.athlete_id ?? t.athlete?.id ?? null,
       scope: t.scope ?? null,
+      display_name: nicknameOf(data.user),
       updated_at: new Date().toISOString(),
     });
   if (error) throw new Error(error.message);

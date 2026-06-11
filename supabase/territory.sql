@@ -42,12 +42,13 @@ drop policy if exists territory_activities_own on territory_activities;
 create policy territory_activities_own on territory_activities
   for select to authenticated using (auth.uid() = user_id);
 
--- 셀 점령 RPC.
+-- 셀 점령 핵심 로직(소유자를 명시적으로 받음). 클라/서버(웹훅) 양쪽에서 공유.
 --   cells: [{ "k": "x_y", "x": 12, "y": 34 }, ...]
---   소유자는 항상 호출자(auth.uid()). 기존 claimed_at 보다 나중일 때만 덮어쓴다(최신 우선).
+--   기존 claimed_at 보다 나중일 때만 덮어쓴다(최신 우선).
 --   ⚠️ 한 활동(p_activity_id)은 1회만 점령에 사용 가능 — 이미 쓴 활동이면 -1 반환(셀 변경 없음).
 --   반환: 새로 점령/갱신된 셀 수(이미 사용한 활동이면 -1).
-create or replace function claim_cells(
+create or replace function claim_cells_for(
+  p_user_id uuid,
   cells jsonb,
   p_owner_name text,
   p_claimed_at timestamptz,
@@ -59,16 +60,15 @@ security definer
 set search_path = public
 as $$
 declare
-  uid uuid := auth.uid();
   changed int;
 begin
-  if uid is null then
-    raise exception 'not authenticated';
+  if p_user_id is null then
+    raise exception 'user id required';
   end if;
 
   -- 이 활동을 처음 쓰는 경우에만 진행. 이미 기록돼 있으면(중복) 아무것도 안 하고 -1.
   insert into territory_activities (user_id, activity_id, claimed_at)
-    values (uid, p_activity_id, p_claimed_at)
+    values (p_user_id, p_activity_id, p_claimed_at)
     on conflict do nothing;
   if not found then
     return -1;
@@ -79,7 +79,7 @@ begin
     (c->>'k'),
     (c->>'x')::int,
     (c->>'y')::int,
-    uid,
+    p_user_id,
     p_owner_name,
     p_claimed_at,
     p_activity_id
@@ -94,6 +94,25 @@ begin
   get diagnostics changed = row_count;
   return changed;
 end;
+$$;
+
+-- 서버 전용(웹훅 Worker가 service_role 키로 호출). 일반 클라이언트는 호출 불가.
+revoke execute on function claim_cells_for(uuid, jsonb, text, timestamptz, text) from public;
+grant execute on function claim_cells_for(uuid, jsonb, text, timestamptz, text) to service_role;
+
+-- 클라이언트용 래퍼: 소유자는 항상 호출자(auth.uid()).
+create or replace function claim_cells(
+  cells jsonb,
+  p_owner_name text,
+  p_claimed_at timestamptz,
+  p_activity_id text
+)
+returns int
+language sql
+security definer
+set search_path = public
+as $$
+  select claim_cells_for(auth.uid(), cells, p_owner_name, p_claimed_at, p_activity_id);
 $$;
 
 grant execute on function claim_cells(jsonb, text, timestamptz, text) to authenticated;

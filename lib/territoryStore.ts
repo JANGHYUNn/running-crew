@@ -39,14 +39,32 @@ export async function fetchCells(): Promise<OwnedCell[]> {
   return out;
 }
 
-/** 셀 묶음을 내 명의로 점령(최신 우선). 반환: 새로 점령/갱신된 셀 수. */
+/** 이 유저가 이미 점령에 사용한 활동 id 집합(중복 점령 방지·"점령됨" 표시용) */
+export async function fetchClaimedActivityIds(userId: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await sb()
+      .from("territory_activities")
+      .select("activity_id")
+      .eq("user_id", userId)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    for (const r of rows) ids.add(r.activity_id);
+    if (rows.length < PAGE) break;
+  }
+  return ids;
+}
+
+/** 셀 묶음을 내 명의로 점령(최신 우선). 한 활동은 1회만 사용 가능.
+ *  반환: 새로 점령/갱신된 셀 수 / 이미 사용한 활동이면 -1.
+ *  (GPS 없는 활동도 빈 배열로 호출 → 서버에 '사용함'으로 기록돼 다음에 다시 안 잡힌다) */
 export async function claimCells(
   cells: Cell[],
   ownerName: string,
   claimedAt: string,
   activityId: string
 ): Promise<number> {
-  if (cells.length === 0) return 0;
   const payload = cells.map((c) => ({ k: `${c.x}_${c.y}`, x: c.x, y: c.y }));
   const { data, error } = await sb().rpc("claim_cells", {
     cells: payload,

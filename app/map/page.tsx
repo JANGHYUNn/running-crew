@@ -19,7 +19,12 @@ import {
   type IcuActivity,
 } from "@/lib/icu";
 import { WINDOW_DAYS, colorForUser, routeToCells } from "@/lib/territory";
-import { claimCells, fetchCells, type OwnedCell } from "@/lib/territoryStore";
+import {
+  claimCells,
+  fetchCells,
+  fetchClaimedActivityIds,
+  type OwnedCell,
+} from "@/lib/territoryStore";
 import type { Route, TerritoryCell } from "@/components/CrewMap";
 import BottomSheet from "@/components/BottomSheet";
 import SupabaseNotice from "@/components/SupabaseNotice";
@@ -37,16 +42,6 @@ function rangeRecent(): [string, string] {
   return [oldest, newest];
 }
 
-// 땅따먹기로 이미 처리한 활동 id(중복 점령·재요청 방지). 유저별 localStorage 보관.
-const processedKey = (userId: string) => `territory_processed_${userId}`;
-function loadProcessed(userId: string): Set<string> {
-  try {
-    return new Set<string>(JSON.parse(localStorage.getItem(processedKey(userId)) ?? "[]"));
-  } catch {
-    return new Set();
-  }
-}
-
 export default function MapPage() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
@@ -56,6 +51,7 @@ export default function MapPage() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [routeLoadingId, setRouteLoadingId] = useState<string | null>(null);
   const [cells, setCells] = useState<OwnedCell[]>([]);
+  const [claimedIds, setClaimedIds] = useState<Set<string>>(new Set()); // 이미 점령에 쓴 활동
   const [claiming, setClaiming] = useState(false);
   const [claimMsg, setClaimMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,9 +70,13 @@ export default function MapPage() {
           if (!alive) return;
           setConnected(Boolean(conn));
           if (conn) {
-            const cs = await fetchCells(); // 크루 전체 점령 현황
+            const [cs, ids] = await Promise.all([
+              fetchCells(), // 크루 전체 점령 현황
+              fetchClaimedActivityIds(u.id), // 내가 이미 쓴 활동
+            ]);
             if (!alive) return;
             setCells(cs);
+            setClaimedIds(ids);
           }
         }
       } catch (e) {
@@ -118,9 +118,10 @@ export default function MapPage() {
     setError(null);
     setClaimMsg(null);
     try {
-      const done = loadProcessed(user.id);
       const name = nicknameOf(user);
-      const targets = activities.filter((a) => !done.has(a.id));
+      // 이미 쓴 활동은 서버 기록 기준으로 제외(브라우저/기기 무관).
+      const used = new Set(claimedIds);
+      const targets = activities.filter((a) => !used.has(a.id));
       let processed = 0;
       let claimed = 0;
       for (let i = 0; i < targets.length; i++) {
@@ -130,20 +131,23 @@ export default function MapPage() {
         try {
           coords = await getRouteCoords(a.id);
         } catch {
-          continue; // 개별 활동 실패는 건너뛰고 계속(처리완료로 표시하지 않음 → 다음에 재시도)
+          continue; // 스트림 조회 실패 → 기록하지 않고 다음에 재시도
         }
-        done.add(a.id); // GPS 유무와 무관히 처리완료(중복 호출 방지)
-        if (coords.length < 2) continue; // 실내 등 경로 없음
-        const list = [...routeToCells(coords).values()];
+        // GPS 없으면 빈 배열로 호출(서버에 '사용함'만 기록돼 다음에 다시 안 잡힘).
+        const list = coords.length >= 2 ? [...routeToCells(coords).values()] : [];
         const claimedAt = new Date(a.start_date_local ?? Date.now()).toISOString();
-        claimed += await claimCells(list, name, claimedAt, a.id);
-        processed += 1;
+        const n = await claimCells(list, name, claimedAt, a.id);
+        used.add(a.id); // 사용 처리
+        if (n >= 0) {
+          processed += 1;
+          claimed += n;
+        }
       }
-      localStorage.setItem(processedKey(user.id), JSON.stringify([...done]));
+      setClaimedIds(used);
       setCells(await fetchCells()); // 최신 현황 반영
       setClaimMsg(
         processed === 0
-          ? "새로 점령할 활동이 없어요 (이미 처리됐거나 경로가 없어요)."
+          ? "새로 점령할 활동이 없어요 (이미 사용했거나 경로가 없어요)."
           : `${processed}개 활동에서 ${claimed}칸을 점령했어요! 🚩`
       );
     } catch (e) {
@@ -351,6 +355,7 @@ export default function MapPage() {
                   {activities.slice(0, 20).map((a) => {
                     const shown = routes.some((r) => r.id === a.id);
                     const loading = routeLoadingId === a.id;
+                    const claimed = claimedIds.has(a.id);
                     return (
                       <li key={a.id}>
                         <button
@@ -362,13 +367,16 @@ export default function MapPage() {
                               : "border-neutral-100 bg-white text-neutral-700 hover:bg-neutral-50"
                           }`}
                         >
-                          <span className="truncate">{a.name || a.type || "활동"}</span>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {claimed && <span title="점령에 사용됨">🚩</span>}
+                            <span className="truncate">{a.name || a.type || "활동"}</span>
+                          </span>
                           <span className="flex shrink-0 items-center gap-2 pl-2 text-xs">
                             <span className={shown ? "text-neutral-300" : "text-neutral-400"}>
                               {a.start_date_local?.slice(0, 10)}
                             </span>
                             <span className={shown ? "text-white" : "text-neutral-300"}>
-                              {loading ? "…" : shown ? "표시중" : "지도에"}
+                              {loading ? "…" : claimed ? "점령됨" : shown ? "표시중" : "지도에"}
                             </span>
                           </span>
                         </button>

@@ -73,3 +73,8 @@ end;
 $$;
 
 grant execute on function claim_cells(jsonb, text, timestamptz, text) to authenticated;
+
+-- ── "최근 N일"만 인정(감쇠) ───────────────────────────────
+-- 점령 인정 기간은 클라이언트 읽기에서 claimed_at >= now()-N일 로 필터한다(lib/territory.ts WINDOW_DAYS).
+-- 기간 지난 행은 카운트되지 않을 뿐 자동 삭제되진 않으므로, 가끔 정리하려면 아래를 실행(선택):
+--   delete from territory_cells where claimed_at < now() - interval '14 days';

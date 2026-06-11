@@ -18,7 +18,7 @@ import {
   startIcuAuth,
   type IcuActivity,
 } from "@/lib/icu";
-import { colorForUser, routeToCells } from "@/lib/territory";
+import { WINDOW_DAYS, colorForUser, routeToCells } from "@/lib/territory";
 import { claimCells, fetchCells, type OwnedCell } from "@/lib/territoryStore";
 import type { Route, TerritoryCell } from "@/components/CrewMap";
 import BottomSheet from "@/components/BottomSheet";
@@ -29,10 +29,11 @@ const CrewMap = dynamic(() => import("@/components/CrewMap"), { ssr: false });
 // 토큰 설정 여부(컴포넌트에서 import 하면 mapbox-gl 이 페이지 번들로 끌려오므로 env 로 직접 확인).
 const mapboxConfigured = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 
-function rangeLastYear(): [string, string] {
+// 점령에 쓸 활동 기간 = 최근 WINDOW_DAYS 일(과거 백필 없음 — 오래된 기록으로 땅 못 깖).
+function rangeRecent(): [string, string] {
   const today = new Date();
   const newest = today.toISOString().slice(0, 10);
-  const oldest = new Date(today.getTime() - 365 * 86_400_000).toISOString().slice(0, 10);
+  const oldest = new Date(today.getTime() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
   return [oldest, newest];
 }
 
@@ -156,7 +157,7 @@ export default function MapPage() {
     setLoadingActs(true);
     setError(null);
     try {
-      const [oldest, newest] = rangeLastYear();
+      const [oldest, newest] = rangeRecent();
       setActivities(await listActivities(oldest, newest));
     } catch (e) {
       setError(e instanceof Error ? e.message : "활동 불러오기 실패");
@@ -270,10 +271,15 @@ export default function MapPage() {
           {/* 바텀시트: peek 에 요약+주요버튼, 펼치면 순위·활동목록 */}
           <BottomSheet>
             {/* ── peek 영역(접힘 시 보임) ── */}
-            <div className="flex items-center justify-between">
-              <div className="text-sm">
-                <span className="font-bold text-neutral-900">🚩 내 땅 {myCount.toLocaleString()}칸</span>
-                <span className="text-neutral-400"> · 전체 {totalCount.toLocaleString()}칸</span>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-sm">
+                  <span className="font-bold text-neutral-900">🚩 내 땅 {myCount.toLocaleString()}칸</span>
+                  <span className="text-neutral-400"> · 전체 {totalCount.toLocaleString()}칸</span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-neutral-400">
+                  최근 {WINDOW_DAYS}일 점령 현황 · 안 달리면 사라져요
+                </p>
               </div>
               <button onClick={handleDisconnect} className="text-xs text-neutral-400 underline">
                 연동 해제
@@ -338,7 +344,9 @@ export default function MapPage() {
 
             {activities.length > 0 && (
               <div className="mt-4">
-                <h2 className="text-sm font-bold text-neutral-700">내 활동 · 탭하면 경로 표시</h2>
+                <h2 className="text-sm font-bold text-neutral-700">
+                  내 활동(최근 {WINDOW_DAYS}일) · 탭하면 경로 표시
+                </h2>
                 <ul className="mt-2 space-y-1.5">
                   {activities.slice(0, 20).map((a) => {
                     const shown = routes.some((r) => r.id === a.id);

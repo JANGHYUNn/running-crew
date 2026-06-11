@@ -7,6 +7,15 @@
 /** 셀 한 변 길이(미터) */
 export const CELL_M = 50;
 
+// 땅따먹기 "최근" 기간(일). 점령 시각이 이 기간을 벗어난 셀은 지도·순위에서 사라진다.
+// → 오래된 기록으로 땅을 깔 수 없고, 계속 달려야 땅을 유지한다.
+export const WINDOW_DAYS = 7;
+
+/** 점령 인정 하한 시각(ISO). 이보다 오래된 claimed_at 은 제외. */
+export function windowCutoffISO(): string {
+  return new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
+}
+
 // 위도 1°≈111,320m. 경도 1°는 위도에 따라 좁아지므로(=cos) 기준 위도에서 ~정사각이 되도록 보정.
 // 격자가 전 좌표에서 일관되게 깔리려면 스텝이 "고정 상수"여야 한다 → 크루 활동 지역(서울권) 기준.
 const REF_LAT = 37.5;

@@ -37,7 +37,8 @@ export default function IcuCallbackPage() {
         setStatus("done");
         setMessage("연동 완료! 지도로 이동합니다…");
         setTimeout(() => {
-          window.location.href = "/map";
+          // replace: 콜백 페이지를 히스토리에서 제거(뒤로가기 시 다시 안 뜨게).
+          window.location.replace("/map");
         }, 1200);
       } catch (e) {
         setStatus("error");

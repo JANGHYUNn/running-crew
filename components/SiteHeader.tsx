@@ -9,9 +9,14 @@ export default function SiteHeader() {
   const router = useRouter();
   const isHome = pathname === "/";
 
+  // 카카오·intervals.icu OAuth 리다이렉트가 히스토리에 쌓이는 페이지는
+  // router.back() 이 연동 중간 페이지(/icu/callback 등)로 돌아가므로 홈으로 보낸다.
+  const backToHome = pathname === "/map";
+
   // 모바일 앱처럼: 이전 화면으로. 직접 진입(히스토리 없음)이면 홈으로.
   function goBack() {
-    if (window.history.length > 1) router.back();
+    if (backToHome) router.push("/");
+    else if (window.history.length > 1) router.back();
     else router.push("/");
   }
 

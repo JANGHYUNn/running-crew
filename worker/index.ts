@@ -14,7 +14,7 @@ interface Env {
   ICU_CLIENT_SECRET: string;
 }
 
-const ICU_TOKEN_URL = "https://intervals.icu/api/v1/oauth/token";
+const ICU_TOKEN_URL = "https://intervals.icu/api/oauth/token";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

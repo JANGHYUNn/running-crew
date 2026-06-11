@@ -4,6 +4,7 @@
 // 현재: 카카오 로그인 → intervals.icu OAuth 연동 → 최근 활동 목록 확인까지.
 // 다음: 활동 GPS(getRouteCoords)를 MapLibre 지도에 레이어로 렌더(미구현).
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import type { User } from "@supabase/supabase-js";
 import { crew } from "@/lib/crew";
 import { supabaseReady } from "@/lib/supabase";
@@ -11,12 +12,19 @@ import { getCurrentUser, signInWithKakao } from "@/lib/auth";
 import {
   disconnectIcu,
   getIcuConnection,
+  getRouteCoords,
   icuConfigured,
   listActivities,
   startIcuAuth,
   type IcuActivity,
 } from "@/lib/icu";
+import type { Route } from "@/components/CrewMap";
 import SupabaseNotice from "@/components/SupabaseNotice";
+
+// Mapbox 는 window 에 의존 → 정적 export 프리렌더 회피 위해 클라 전용 로드.
+const CrewMap = dynamic(() => import("@/components/CrewMap"), { ssr: false });
+// 토큰 설정 여부(컴포넌트에서 import 하면 mapbox-gl 이 페이지 번들로 끌려오므로 env 로 직접 확인).
+const mapboxConfigured = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 
 function rangeLastYear(): [string, string] {
   const today = new Date();
@@ -31,6 +39,8 @@ export default function MapPage() {
   const [connected, setConnected] = useState(false);
   const [activities, setActivities] = useState<IcuActivity[]>([]);
   const [loadingActs, setLoadingActs] = useState(false);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [routeLoadingId, setRouteLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // 마운트 시 로그인·연동 상태 확인. 첫 await 전엔 setState 를 두지 않는다(이펙트 규칙).
@@ -71,12 +81,35 @@ export default function MapPage() {
     }
   }
 
+  // 활동 행 탭 → 지도에 경로 표시/숨김 토글. GPS 없는 활동(실내 등)은 안내.
+  async function toggleRoute(id: string) {
+    if (routes.some((r) => r.id === id)) {
+      setRoutes((prev) => prev.filter((r) => r.id !== id));
+      return;
+    }
+    setRouteLoadingId(id);
+    setError(null);
+    try {
+      const coords = await getRouteCoords(id);
+      if (coords.length < 2) {
+        setError("이 활동엔 GPS 경로가 없어요 (실내·트레드밀 활동일 수 있어요).");
+        return;
+      }
+      setRoutes((prev) => [...prev, { id, coords }]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "경로 불러오기 실패");
+    } finally {
+      setRouteLoadingId(null);
+    }
+  }
+
   async function handleDisconnect() {
     if (!confirm("intervals.icu 연동을 해제할까요?")) return;
     try {
       await disconnectIcu();
       setConnected(false);
       setActivities([]);
+      setRoutes([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "해제 실패");
     }
@@ -144,6 +177,16 @@ export default function MapPage() {
             </button>
           </div>
 
+          {mapboxConfigured ? (
+            <div className="mt-4">
+              <CrewMap routes={routes} />
+            </div>
+          ) : (
+            <Notice>
+              지도 토큰(NEXT_PUBLIC_MAPBOX_TOKEN)이 아직 설정되지 않아 지도를 표시할 수 없어요.
+            </Notice>
+          )}
+
           <button
             onClick={loadActivities}
             disabled={loadingActs}
@@ -154,23 +197,35 @@ export default function MapPage() {
 
           {activities.length > 0 && (
             <ul className="mt-4 space-y-1.5">
-              {activities.slice(0, 20).map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center justify-between rounded-lg border border-neutral-100 bg-white px-3 py-2 text-sm"
-                >
-                  <span className="truncate text-neutral-700">{a.name || a.type || "활동"}</span>
-                  <span className="shrink-0 pl-2 text-xs text-neutral-400">
-                    {a.start_date_local?.slice(0, 10)}
-                  </span>
-                </li>
-              ))}
+              {activities.slice(0, 20).map((a) => {
+                const shown = routes.some((r) => r.id === a.id);
+                const loading = routeLoadingId === a.id;
+                return (
+                  <li key={a.id}>
+                    <button
+                      onClick={() => toggleRoute(a.id)}
+                      disabled={loading}
+                      className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-60 ${
+                        shown
+                          ? "border-transparent bg-neutral-900 text-white"
+                          : "border-neutral-100 bg-white text-neutral-700 hover:bg-neutral-50"
+                      }`}
+                    >
+                      <span className="truncate">{a.name || a.type || "활동"}</span>
+                      <span className="flex shrink-0 items-center gap-2 pl-2 text-xs">
+                        <span className={shown ? "text-neutral-300" : "text-neutral-400"}>
+                          {a.start_date_local?.slice(0, 10)}
+                        </span>
+                        <span className={shown ? "text-white" : "text-neutral-300"}>
+                          {loading ? "…" : shown ? "표시중" : "지도에"}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
-
-          <p className="mt-6 rounded-xl border border-dashed border-neutral-300 p-4 text-center text-xs text-neutral-400">
-            🚧 다음 단계: 활동 GPS를 MapLibre 지도에 경로 레이어로 렌더링
-          </p>
         </div>
       )}
     </div>

@@ -14,6 +14,6 @@
   "vars": {
     // client_id 는 공개돼도 되는 값(authorize URL 에 그대로 들어감). 배포 시 실제 값으로 채울 것.
     // client_secret 은 여기 두지 말 것 → `npx wrangler secret put ICU_CLIENT_SECRET`
-    "ICU_CLIENT_ID": ""
+    "ICU_CLIENT_ID": "475"
   }
 }

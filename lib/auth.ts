@@ -4,15 +4,20 @@
 import { getSupabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
-/** 카카오 로그인 시작 → 카카오 동의화면으로 이동 후 /me 로 복귀 */
-export async function signInWithKakao(): Promise<void> {
+/**
+ * 카카오 로그인 시작 → 카카오 동의화면으로 이동 후 복귀.
+ * @param redirectTo 복귀할 앱 내 경로(기본: 현재 페이지). 예: "/map"
+ */
+export async function signInWithKakao(redirectTo?: string): Promise<void> {
   const client = getSupabase();
   if (!client) throw new Error("Supabase 가 설정되지 않았습니다.");
+  // 기본은 로그인을 누른 현재 페이지로 복귀(예: /map 에서 로그인하면 /map 으로).
+  const path = redirectTo ?? window.location.pathname;
   // 주의: Supabase 카카오 provider 는 account_email 을 강제 요청한다(클라 scopes 로 제거 불가).
   // → 카카오 앱을 비즈앱으로 전환하고 account_email 동의항목을 활성화해야 로그인이 된다.
   const { error } = await client.auth.signInWithOAuth({
     provider: "kakao",
-    options: { redirectTo: `${window.location.origin}/me` },
+    options: { redirectTo: `${window.location.origin}${path}` },
   });
   if (error) throw new Error(error.message);
 }

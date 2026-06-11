@@ -26,6 +26,13 @@ export const features: Feature[] = [
     status: "ready",
   },
   {
+    href: "/map",
+    title: "크루 여정 지도",
+    emoji: "🗺️",
+    desc: "intervals.icu 활동 경로를 지도에 모아 크루의 발자취를 그려요",
+    status: "ready",
+  },
+  {
     href: "/pace",
     title: "목표 기록 페이스 전략",
     emoji: "🎯",

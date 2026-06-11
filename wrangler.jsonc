@@ -17,6 +17,6 @@
     "ICU_CLIENT_ID": "475",
     // 웹훅 Worker 가 Supabase REST 를 호출할 베이스 URL(공개 가능, NEXT_PUBLIC_SUPABASE_URL 과 동일).
     // 예: "https://xxxx.supabase.co". service role 키·webhook secret 은 secret 으로 따로 주입.
-    "SUPABASE_URL": ""
+    "SUPABASE_URL": "https://hktvlxqvsykrgbnbdtea.supabase.co"
   }
 }

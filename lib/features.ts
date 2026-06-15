@@ -12,6 +12,13 @@ export interface Feature {
 
 export const features: Feature[] = [
   {
+    href: "/map",
+    title: "크루 지도",
+    emoji: "🗺️",
+    desc: "달린 경로로 땅따먹기 + 크루 추천 러닝 코스를 지도에서 한눈에",
+    status: "ready",
+  },
+  {
     href: "/challenge",
     title: "조별 누적거리 챌린지",
     emoji: "🏆",
@@ -23,13 +30,6 @@ export const features: Feature[] = [
     title: "크루 기록 통계",
     emoji: "📊",
     desc: "크루 전체·멤버별 누적·월별·주별 거리와 랭킹을 한눈에",
-    status: "ready",
-  },
-  {
-    href: "/map",
-    title: "크루 땅따먹기",
-    emoji: "🚩",
-    desc: "달린 경로로 지도에 내 땅을 칠하고, 크루끼리 영역을 뺏어요",
     status: "ready",
   },
   {

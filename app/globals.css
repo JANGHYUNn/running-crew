@@ -135,6 +135,24 @@ html[data-splash="leaving"] .splash {
   }
 }
 
+/* 러닝 추천 코스 핀(지도 마커). --pin-color 는 코스 색으로 인라인 주입.
+   ⚠️ transform 금지 — mapbox 가 마커 위치를 인라인 transform 으로 잡으므로 충돌함. */
+.course-pin {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid var(--pin-color, #fc5200);
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 /* 폼 입력 공통 스타일 */
 .input {
   width: 100%;

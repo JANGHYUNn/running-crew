@@ -18,6 +18,7 @@ import {
 } from "@/lib/icu";
 import { cellsToPolygons, colorForUser, type Cell } from "@/lib/territory";
 import { fetchCells, type OwnedCell } from "@/lib/territoryStore";
+import { COURSES, withUniqueIds } from "@/lib/courses";
 import type { Territory } from "@/components/CrewMap";
 import BottomSheet from "@/components/BottomSheet";
 import SupabaseNotice from "@/components/SupabaseNotice";
@@ -33,6 +34,13 @@ export default function MapPage() {
   const [connected, setConnected] = useState(false);
   const [cells, setCells] = useState<OwnedCell[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // 지도 레이어 표시 토글(땅따먹기 / 러닝 추천 경로).
+  const [showTerritory, setShowTerritory] = useState(true);
+  const [showCourses, setShowCourses] = useState(true);
+  // 겹치는 경로 구분용: 탭한 코스만 강조(한 번 더 탭하면 해제).
+  const [highlightedCourseId, setHighlightedCourseId] = useState<string | null>(null);
+  // id 중복(변환기 기본 id) 방지 — 강조/범례가 id 로 구분하므로 고유화 필수.
+  const courses = useMemo(() => withUniqueIds(COURSES), []);
 
   // 마운트 시 로그인·연동 상태 확인. 첫 await 전엔 setState 를 두지 않는다(이펙트 규칙).
   useEffect(() => {
@@ -151,9 +159,59 @@ export default function MapPage() {
         </CenterCard>
       ) : (
         <>
-          {/* 풀스크린 지도(점령 폴리곤) */}
+          {/* 풀스크린 지도(점령 폴리곤 + 추천 경로) */}
           <div className="absolute inset-0">
-            <CrewMap territories={territories} />
+            <CrewMap
+              territories={territories}
+              courses={courses}
+              showTerritory={showTerritory}
+              showCourses={showCourses}
+              highlightedCourseId={showCourses ? highlightedCourseId : null}
+            />
+          </div>
+
+          {/* 좌상단 레이어 토글 + 코스 범례 */}
+          <div className="absolute left-3 top-3 z-10 flex max-w-[60%] flex-col items-start gap-1.5">
+            <LayerToggle
+              active={showTerritory}
+              onClick={() => setShowTerritory((v) => !v)}
+            >
+              🚩 땅따먹기
+            </LayerToggle>
+            <LayerToggle
+              active={showCourses}
+              onClick={() => setShowCourses((v) => !v)}
+            >
+              🏃 추천 경로
+            </LayerToggle>
+
+            {showCourses && courses.length > 0 && (
+              <div className="mt-1 rounded-xl bg-white/90 p-1.5 shadow-sm ring-1 ring-black/5 backdrop-blur">
+                {courses.map((c) => {
+                  const on = highlightedCourseId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() =>
+                        setHighlightedCourseId((cur) => (cur === c.id ? null : c.id))
+                      }
+                      className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs ${
+                        on ? "bg-neutral-900 text-white" : "text-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
+                        style={{ backgroundColor: c.color }}
+                      />
+                      <span className="truncate font-bold">{c.name}</span>
+                      <span className={on ? "text-white/70" : "text-neutral-400"}>
+                        {c.distance}km
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 상단 떠있는 상태칩 / 에러 토스트 */}
@@ -223,6 +281,30 @@ export default function MapPage() {
         </>
       )}
     </div>
+  );
+}
+
+function LayerToggle({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ring-1 ring-black/5 backdrop-blur transition ${
+        active
+          ? "bg-white/95 text-neutral-900"
+          : "bg-white/50 text-neutral-400 line-through"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

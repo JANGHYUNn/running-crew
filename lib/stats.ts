@@ -7,9 +7,9 @@ import {
   startOfWeekISO,
   todayISO,
   monthKeyMinus,
-  weekKeyMinus,
+  dayKeyMinus,
   enumerateMonths,
-  enumerateWeeks,
+  enumerateDays,
 } from "@/lib/format";
 import type { User } from "@supabase/supabase-js";
 import { nicknameOf, avatarOf } from "@/lib/auth";
@@ -133,7 +133,7 @@ export interface StatsSummary {
   thisWeek: number;
   runCount: number;
   monthly: Bucket[]; // 오래된→최근
-  weekly: Bucket[]; // 오래된→최근
+  daily: Bucket[]; // 최근 DAY_SPAN 일(빈 날 0), 오래된→최근
   /** 평균 페이스(초/km). 시간 입력된 기록들의 (총시간/총거리). 없으면 0 */
   avgPaceSec: number;
   /** 최장 거리(km) */
@@ -161,9 +161,10 @@ function bucketize(
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
-// 그래프가 비지 않도록 최소로 보장할 연속 기간 수(이보다 데이터가 오래되면 그만큼 더 확장).
+// 월별: 그래프가 비지 않도록 최소 보장할 연속 개월 수(더 오래된 데이터면 그만큼 확장).
 const MONTH_SPAN = 12;
-const WEEK_SPAN = 12;
+// 일별: 항상 최근 N일을 보여준다(그 이전 데이터는 월별로).
+const DAY_SPAN = 30;
 
 /** 희소 버킷(데이터 있는 기간만)을 연속 키 배열에 맞춰 빈 기간을 0으로 채운 배열로. */
 function fillBuckets(sparse: Bucket[], keys: string[]): Bucket[] {
@@ -204,8 +205,9 @@ export function summarizeStats(runs: PersonalRun[]): StatsSummary {
 
   // 희소 버킷 → 빈 기간 0 채움(연속 타임라인). 데이터가 한 기간에 몰려도 0 기준선에서
   // 솟아오르는 제대로 된 그래프가 된다(점 1개라 안 그려지던 문제 해결).
+  // 월별: 최소 MONTH_SPAN 개월(더 오래된 데이터면 확장). 일별: 항상 최근 DAY_SPAN 일.
   const monthlySparse = bucketize(runs, (r) => monthKey(r.run_date));
-  const weeklySparse = bucketize(runs, (r) => startOfWeekISO(r.run_date));
+  const dailySparse = bucketize(runs, (r) => r.run_date);
   const minKey = (earliest: string | undefined, floor: string) =>
     earliest && earliest < floor ? earliest : floor;
   const monthly = runs.length
@@ -214,11 +216,8 @@ export function summarizeStats(runs: PersonalRun[]): StatsSummary {
         enumerateMonths(minKey(monthlySparse[0]?.key, monthKeyMinus(curMonth, MONTH_SPAN - 1)), curMonth)
       )
     : [];
-  const weekly = runs.length
-    ? fillBuckets(
-        weeklySparse,
-        enumerateWeeks(minKey(weeklySparse[0]?.key, weekKeyMinus(curWeek, WEEK_SPAN - 1)), curWeek)
-      )
+  const daily = runs.length
+    ? fillBuckets(dailySparse, enumerateDays(dayKeyMinus(today, DAY_SPAN - 1), today))
     : [];
 
   return {
@@ -227,7 +226,7 @@ export function summarizeStats(runs: PersonalRun[]): StatsSummary {
     thisWeek,
     runCount: runs.length,
     monthly,
-    weekly,
+    daily,
     avgPaceSec: timedDist > 0 ? timedSec / timedDist : 0,
     longestKm,
     longestDurationSec,

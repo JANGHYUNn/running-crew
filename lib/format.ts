@@ -124,6 +124,29 @@ export function enumerateMonths(startKey: string, endKey: string): string[] {
   return out;
 }
 
+/** "YYYY-MM-DD" 에서 n일 뺀 키 */
+export function dayKeyMinus(key: string, n: number): string {
+  const d = new Date(`${key}T00:00:00`);
+  d.setDate(d.getDate() - n);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${dd}`;
+}
+
+/** 두 "YYYY-MM-DD" 키 사이(포함)의 모든 날짜 키를 오름차순으로(1일 간격) */
+export function enumerateDays(startKey: string, endKey: string): string[] {
+  const out: string[] = [];
+  const d = new Date(`${startKey}T00:00:00`);
+  const end = new Date(`${endKey}T00:00:00`);
+  for (let guard = 0; guard < 1000 && d <= end; guard++) {
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    out.push(`${d.getFullYear()}-${m}-${dd}`);
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
 /** 두 주 시작일 키("YYYY-MM-DD") 사이(포함)의 모든 주 키를 오름차순으로(7일 간격) */
 export function enumerateWeeks(startKey: string, endKey: string): string[] {
   const out: string[] = [];

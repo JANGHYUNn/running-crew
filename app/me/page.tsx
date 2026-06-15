@@ -569,7 +569,7 @@ function StatsExplorer({
 }) {
   const [target, setTarget] = useState("crew"); // "crew" | userId
   const [metric, setMetric] = useState<Metric>("km");
-  const [period, setPeriod] = useState<"month" | "week">("month");
+  const [period, setPeriod] = useState<"month" | "day">("month");
 
   const isCrew = target === "crew";
   const runs = useMemo(
@@ -578,10 +578,8 @@ function StatsExplorer({
   );
   const stats = useMemo(() => summarizeStats(runs), [runs]);
 
-  const buckets = (period === "month" ? stats.monthly : stats.weekly).slice(
-    period === "month" ? -8 : -10
-  );
-  const fmtKey = period === "month" ? mmLabel : weekLabel;
+  const buckets = period === "month" ? stats.monthly.slice(-8) : stats.daily;
+  const fmtKey = period === "month" ? mmLabel : dayLabel;
   const prefix = isCrew ? "크루" : "";
 
   return (
@@ -651,7 +649,7 @@ function StatsExplorer({
           onChange={(v) => setPeriod(v)}
           options={[
             ["month", "월별"],
-            ["week", "주별"],
+            ["day", "일별"],
           ]}
         />
       </div>
@@ -767,7 +765,8 @@ function TrendChart({
             stroke={crew.primary}
             strokeWidth={2.5}
             fill="url(#trendFill)"
-            dot={{ r: 3, fill: "#fff", stroke: crew.primary, strokeWidth: 2 }}
+            // 포인트가 많은(일별) 그래프는 점을 숨겨 깔끔하게. 적으면(월별) 점 표시.
+            dot={data.length > 14 ? false : { r: 3, fill: "#fff", stroke: crew.primary, strokeWidth: 2 }}
             activeDot={{ r: 5 }}
           />
         </AreaChart>
@@ -780,18 +779,9 @@ function TrendChart({
 function mmLabel(key: string): string {
   return `${Number(key.slice(5, 7))}월`;
 }
-/** 주 시작일 "2026-06-08" → "6/8–14" (그 주 월~일 범위).
- *  주별 버킷은 그 주의 월요일을 키로 쓴다 → 날짜 하나만 보이면 "그날 기록만 있다"로 오해돼서
- *  범위로 표기한다(예: 6/9·6/10 기록은 "6/8–14" 주에 합산). */
-function weekLabel(key: string): string {
-  const start = new Date(`${key}T00:00:00`);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const sM = start.getMonth() + 1;
-  const sD = start.getDate();
-  const eM = end.getMonth() + 1;
-  const eD = end.getDate();
-  return sM === eM ? `${sM}/${sD}–${eD}` : `${sM}/${sD}–${eM}/${eD}`;
+/** 날짜 "2026-06-09" → "6/9" */
+function dayLabel(key: string): string {
+  return `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
 }
 
 // ── 활동 히트맵(GitHub 잔디 스타일) ─────────────────────────

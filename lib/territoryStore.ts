@@ -1,7 +1,7 @@
 // 땅따먹기 Supabase 스토어 — 점령 셀 읽기/쓰기.
 // 정적 export라 모두 브라우저에서 직접 호출. 쓰기는 claim_cells RPC 경유(supabase/territory.sql).
 import { getSupabase } from "@/lib/supabase";
-import { windowCutoffISO, type Cell } from "@/lib/territory";
+import type { Cell } from "@/lib/territory";
 
 function sb() {
   const c = getSupabase();
@@ -19,15 +19,14 @@ export interface OwnedCell {
 
 const PAGE = 1000; // Supabase 기본 응답 상한
 
-/** 최근 기간(WINDOW_DAYS) 내 점령 현황. 기간 지난 셀은 제외(누적이 1000행 초과 가능 → 페이지네이션) */
+/** 점령 현황 전체. 점령은 영구 유지(시간 경과로 사라지지 않음) — 뺏기면 소유자만 바뀐다.
+ *  (누적이 1000행 초과 가능 → 페이지네이션) */
 export async function fetchCells(): Promise<OwnedCell[]> {
-  const cutoff = windowCutoffISO();
   const out: OwnedCell[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await sb()
       .from("territory_cells")
       .select("x,y,user_id,owner_name")
-      .gte("claimed_at", cutoff)
       .range(from, from + PAGE - 1);
     if (error) throw new Error(error.message);
     const rows = data ?? [];

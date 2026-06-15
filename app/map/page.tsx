@@ -3,7 +3,7 @@
 // 크루 집단 여정 지도 + 🟦 땅따먹기.
 // 점령은 intervals.icu 웹훅으로 서버에서 자동 처리(worker/index.ts). 이 페이지는 "보기 전용":
 // 카카오 로그인 → icu 연동 상태 확인 → 크루 전체 점령 현황을 폴리곤으로 렌더 + 순위.
-// 규칙: 최근 N일만 인정(안 달리면 사라짐) · 최신 점령 우선(뺏기) · 한 활동 1회.
+// 규칙: 점령은 영구 유지(안 사라짐) · 최신 점령 우선(뺏기) · 한 활동 1회.
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { User } from "@supabase/supabase-js";
@@ -16,7 +16,7 @@ import {
   icuConfigured,
   startIcuAuth,
 } from "@/lib/icu";
-import { WINDOW_DAYS, cellsToPolygons, colorForUser, type Cell } from "@/lib/territory";
+import { cellsToPolygons, colorForUser, type Cell } from "@/lib/territory";
 import { fetchCells, type OwnedCell } from "@/lib/territoryStore";
 import type { Territory } from "@/components/CrewMap";
 import BottomSheet from "@/components/BottomSheet";
@@ -177,7 +177,7 @@ export default function MapPage() {
                   <span className="text-neutral-400"> · 전체 {totalCount.toLocaleString()}칸</span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-neutral-400">
-                  최근 {WINDOW_DAYS}일 · 달리면 자동으로 칠해져요 · 안 달리면 사라져요
+                  달리면 자동으로 칠해져요 · 같은 칸을 더 최근에 달린 사람이 차지해요
                 </p>
               </div>
               <button onClick={handleDisconnect} className="text-xs text-neutral-400 underline">

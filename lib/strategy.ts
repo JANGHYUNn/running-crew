@@ -126,6 +126,9 @@ export function predictTimeSec(
   return knownSec * Math.pow(targetKm / knownKm, 1.06);
 }
 
+// 무리한 목표일 때 추천하는 "첫 목표"의 개선폭(현재 실력 예측 대비). 0.97 = 3% 빠르게.
+const SUGGEST_IMPROVE = 0.97;
+
 export type FeasibilityLevel = "easy" | "realistic" | "challenging" | "hard";
 
 export interface Feasibility {
@@ -185,6 +188,8 @@ export function assessFeasibility(
     title: "다소 무리한 목표",
     message:
       "지금 실력 대비 꽤 빠른 목표예요. 아래 추천 기록부터 단계적으로 올리는 걸 권해요.",
-    suggestSec: predictedSec,
+    // 추천 목표 = 현재 실력 예측보다 살짝 빠른(도달 가능한) 첫 기록. 예측값과 동일하면
+    // "추천"의 의미가 없으므로 ~3% 개선치로(무리한 목표보단 훨씬 쉬움).
+    suggestSec: Math.round(predictedSec * SUGGEST_IMPROVE),
   };
 }

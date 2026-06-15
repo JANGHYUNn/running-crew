@@ -18,5 +18,11 @@
     // 웹훅 Worker 가 Supabase REST 를 호출할 베이스 URL(공개 가능, NEXT_PUBLIC_SUPABASE_URL 과 동일).
     // 예: "https://xxxx.supabase.co". service role 키·webhook secret 은 secret 으로 따로 주입.
     "SUPABASE_URL": "https://hktvlxqvsykrgbnbdtea.supabase.co"
+  },
+  // Workers Logs(영구 로그) — console.log 가 Cloudflare 대시보드 Logs 탭에 며칠간 보존된다.
+  // 웹훅이 왔는지/토큰매칭·좌표·점령칸수를 사후에 확인하려는 용도(tail 안 켜도 됨). 무료 한도 내.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
 }

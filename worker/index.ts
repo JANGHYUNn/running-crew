@@ -113,6 +113,14 @@ async function webhook(request: Request, env: Env): Promise<Response> {
   } catch {
     return json({ error: "invalid json" }, 400);
   }
+  // 들어온 웹훅 요약 로그(Workers Logs 에 보존). 시크릿 값은 안 남기고 일치여부만.
+  const summary = (body.events ?? [])
+    .map((e) => `${e.type}/${e.athlete_id}/${e.activity?.id}`)
+    .join(", ");
+  console.log(
+    `[icu-webhook] hit secretOk=${body.secret === env.ICU_WEBHOOK_SECRET} events=[${summary}]`
+  );
+
   // 본문의 secret 으로 icu 발신임을 검증.
   if (!body.secret || body.secret !== env.ICU_WEBHOOK_SECRET) {
     return json({ error: "bad secret" }, 401);
@@ -124,7 +132,8 @@ async function webhook(request: Request, env: Env): Promise<Response> {
   for (const ev of events) {
     try {
       await handleActivity(ev, env);
-    } catch {
+    } catch (e) {
+      console.log(`[icu-webhook] error: ${String(e)}`);
       retryable = true; // 일시적 실패 → icu 재전송에 맡김(claim 은 idempotent)
     }
   }
@@ -138,7 +147,11 @@ async function handleActivity(ev: IcuEvent, env: Env): Promise<void> {
   if (!athleteId || !activityId) return; // 정보 부족 → 무시
 
   const tok = await getToken(env, athleteId);
-  if (!tok) return; // 우리 앱에 연동 안 된 athlete → 무시
+  if (!tok) {
+    // 웹훅은 왔는데 이 athlete 의 토큰이 없음 → 그 런이 비는 대표 원인. 로그로 남긴다.
+    console.log(`[icu-webhook] ${activityId}: athlete=${athleteId} 토큰 없음 → 무시`);
+    return;
+  }
 
   const coords = await fetchRouteCoords(activityId, tok.access_token);
   // 경로 → 점령 셀(버퍼 밴드 + 닫힌 루프 내부 채움).
@@ -149,7 +162,13 @@ async function handleActivity(ev: IcuEvent, env: Env): Promise<void> {
   }));
   // GPS 없으면 payload 가 빈 배열 → 그래도 호출(서버에 '사용함' 기록돼 재처리 안 됨).
   const claimedAt = ev.activity?.start_date_local ?? ev.timestamp ?? new Date().toISOString();
-  await claimForUser(env, tok.user_id, payload, tok.display_name ?? "러너", claimedAt, activityId);
+  const claimed = await claimForUser(
+    env, tok.user_id, payload, tok.display_name ?? "러너", claimedAt, activityId
+  );
+  console.log(
+    `[icu-webhook] ${activityId}: athlete=${athleteId} coords=${coords.length} ` +
+      `cells=${payload.length} claimed=${claimed}` // claimed: 점령/갱신 칸수, -1=이미 사용한 활동
+  );
 }
 
 function sbHeaders(env: Env): Record<string, string> {
@@ -195,7 +214,7 @@ async function fetchRouteCoords(
   return coords;
 }
 
-/** 서버 전용 점령 RPC 호출(service_role) */
+/** 서버 전용 점령 RPC 호출(service_role). 반환: 점령/갱신된 칸수(-1=이미 사용한 활동) */
 async function claimForUser(
   env: Env,
   userId: string,
@@ -203,7 +222,7 @@ async function claimForUser(
   ownerName: string,
   claimedAt: string,
   activityId: string
-): Promise<void> {
+): Promise<number> {
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/claim_cells_for`, {
     method: "POST",
     headers: sbHeaders(env),
@@ -216,6 +235,7 @@ async function claimForUser(
     }),
   });
   if (!res.ok) throw new Error(`claim ${res.status} ${await res.text().catch(() => "")}`);
+  return Number(await res.text().catch(() => "0")) || 0;
 }
 
 function json(obj: unknown, status = 200): Response {

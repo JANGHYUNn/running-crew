@@ -19,7 +19,7 @@ export interface Territory {
   color: string;
 }
 
-const SEOUL: [number, number] = [127.0, 37.55]; // 기본 중심
+const CHEONGNA: [number, number] = [126.6465, 37.5345]; // 기본 중심: 인천 청라국제도시
 
 function toFeatureCollection(territories: Territory[]): FeatureCollection {
   return {
@@ -64,8 +64,8 @@ export default function CrewMap({ territories }: { territories: Territory[] }) {
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: "mapbox://styles/mapbox/dark-v11",
-      center: SEOUL,
-      zoom: 10,
+      center: CHEONGNA,
+      zoom: 12,
       attributionControl: true,
     });
     mapRef.current = map;

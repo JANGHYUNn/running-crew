@@ -226,9 +226,11 @@ export function cellsToPolygons(cells: Cell[]): Poly[] {
   return outers.map((o) => [toLngLat(o.ring), ...o.holes.map(toLngLat)]);
 }
 
-/** user_id(uuid) → 안정적인 소유자 색(HSL). 같은 유저는 항상 같은 색. */
+/** user_id(uuid) → 안정적인 소유자 색(HSL). 같은 유저는 항상 같은 색.
+ *  ⚠️ 쉼표 구분 hsl() 로 출력 — Mapbox GL 색 파서는 CSS Color 4 의 공백 구분 문법을 못 읽어
+ *  fill-color 가 검정으로 fallback 된다. lightness 55% 라 어떤 hue 도 검정이 되지 않는다. */
 export function colorForUser(userId: string): string {
   let h = 0;
   for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) >>> 0;
-  return `hsl(${h % 360} 75% 55%)`;
+  return `hsl(${h % 360}, 75%, 55%)`;
 }

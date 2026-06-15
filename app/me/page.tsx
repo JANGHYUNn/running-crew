@@ -780,9 +780,18 @@ function TrendChart({
 function mmLabel(key: string): string {
   return `${Number(key.slice(5, 7))}월`;
 }
-/** 주 시작일 "2026-06-02" → "6/2" */
+/** 주 시작일 "2026-06-08" → "6/8–14" (그 주 월~일 범위).
+ *  주별 버킷은 그 주의 월요일을 키로 쓴다 → 날짜 하나만 보이면 "그날 기록만 있다"로 오해돼서
+ *  범위로 표기한다(예: 6/9·6/10 기록은 "6/8–14" 주에 합산). */
 function weekLabel(key: string): string {
-  return `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
+  const start = new Date(`${key}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const sM = start.getMonth() + 1;
+  const sD = start.getDate();
+  const eM = end.getMonth() + 1;
+  const eD = end.getDate();
+  return sM === eM ? `${sM}/${sD}–${eD}` : `${sM}/${sD}–${eM}/${eD}`;
 }
 
 // ── 활동 히트맵(GitHub 잔디 스타일) ─────────────────────────

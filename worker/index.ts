@@ -141,6 +141,16 @@ async function webhook(request: Request, env: Env): Promise<Response> {
   return new Response(null, { status: retryable ? 500 : 200 });
 }
 
+// intervals.icu 의 start_date_local 은 타임존 오프셋이 없는 "현지시각" 문자열(예 "2026-06-13T20:10:50").
+// 그대로 timestamptz 로 저장하면 UTC 로 해석돼 KST(+09:00)만큼 미래로 기록된다.
+// 크루 활동지역(서울, lib/territory.ts REF_LAT=37.5)을 기준으로 +09:00 을 붙여 올바른 순간으로 보정.
+// 이미 오프셋(Z 또는 ±hh:mm)이 있는 값(ev.timestamp 등)은 그대로 둔다.
+const KST_OFFSET = "+09:00";
+function toAbsoluteISO(raw: string): string {
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(raw)) return raw;
+  return `${raw}${KST_OFFSET}`;
+}
+
 async function handleActivity(ev: IcuEvent, env: Env): Promise<void> {
   const athleteId = ev.athlete_id;
   const activityId = ev.activity?.id;
@@ -161,7 +171,10 @@ async function handleActivity(ev: IcuEvent, env: Env): Promise<void> {
     y: c.y,
   }));
   // GPS 없으면 payload 가 빈 배열 → 그래도 호출(서버에 '사용함' 기록돼 재처리 안 됨).
-  const claimedAt = ev.activity?.start_date_local ?? ev.timestamp ?? new Date().toISOString();
+  // start_date_local 은 오프셋이 없으므로 KST 로 보정(아래 toAbsoluteISO). timestamp 는 이미 오프셋 포함.
+  const claimedAt = toAbsoluteISO(
+    ev.activity?.start_date_local ?? ev.timestamp ?? new Date().toISOString()
+  );
   const claimed = await claimForUser(
     env, tok.user_id, payload, tok.display_name ?? "러너", claimedAt, activityId
   );

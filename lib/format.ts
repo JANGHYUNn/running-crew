@@ -85,3 +85,55 @@ export function startOfWeekISO(isoDate: string): string {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${m}-${dd}`;
 }
+
+// ── 연속 기간 키 열거(통계 그래프 빈 기간 0 채움용) ──────────
+/** "YYYY-MM" 키에서 n개월 뺀 키 */
+export function monthKeyMinus(key: string, n: number): string {
+  let [y, m] = key.split("-").map(Number);
+  m -= n;
+  while (m <= 0) {
+    m += 12;
+    y -= 1;
+  }
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+/** 주 시작일 키("YYYY-MM-DD")에서 n주 뺀 키 */
+export function weekKeyMinus(key: string, n: number): string {
+  const d = new Date(`${key}T00:00:00`);
+  d.setDate(d.getDate() - n * 7);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${dd}`;
+}
+
+/** 두 "YYYY-MM" 키 사이(포함)의 모든 월 키를 오름차순으로 */
+export function enumerateMonths(startKey: string, endKey: string): string[] {
+  const out: string[] = [];
+  let [y, m] = startKey.split("-").map(Number);
+  for (let guard = 0; guard < 600; guard++) {
+    const key = `${y}-${String(m).padStart(2, "0")}`;
+    if (key > endKey) break;
+    out.push(key);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
+
+/** 두 주 시작일 키("YYYY-MM-DD") 사이(포함)의 모든 주 키를 오름차순으로(7일 간격) */
+export function enumerateWeeks(startKey: string, endKey: string): string[] {
+  const out: string[] = [];
+  const d = new Date(`${startKey}T00:00:00`);
+  const end = new Date(`${endKey}T00:00:00`);
+  for (let guard = 0; guard < 600 && d <= end; guard++) {
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    out.push(`${d.getFullYear()}-${m}-${dd}`);
+    d.setDate(d.getDate() + 7);
+  }
+  return out;
+}

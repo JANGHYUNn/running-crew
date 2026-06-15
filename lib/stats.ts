@@ -2,7 +2,15 @@
 // 카카오 로그인 사용자의 personal_runs 를 브라우저에서 직접 CRUD/집계한다(정적 export, 서버 0).
 // RLS: 읽기는 로그인 전체 허용(랭킹/타인 기록), 쓰기는 본인 행만. supabase/auth-stats.sql 참고.
 import { getSupabase } from "@/lib/supabase";
-import { monthKey, startOfWeekISO, todayISO } from "@/lib/format";
+import {
+  monthKey,
+  startOfWeekISO,
+  todayISO,
+  monthKeyMinus,
+  weekKeyMinus,
+  enumerateMonths,
+  enumerateWeeks,
+} from "@/lib/format";
 import type { User } from "@supabase/supabase-js";
 import { nicknameOf, avatarOf } from "@/lib/auth";
 
@@ -153,6 +161,16 @@ function bucketize(
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
+// 그래프가 비지 않도록 최소로 보장할 연속 기간 수(이보다 데이터가 오래되면 그만큼 더 확장).
+const MONTH_SPAN = 12;
+const WEEK_SPAN = 12;
+
+/** 희소 버킷(데이터 있는 기간만)을 연속 키 배열에 맞춰 빈 기간을 0으로 채운 배열로. */
+function fillBuckets(sparse: Bucket[], keys: string[]): Bucket[] {
+  const map = new Map(sparse.map((b) => [b.key, b]));
+  return keys.map((key) => map.get(key) ?? { key, km: 0, runCount: 0 });
+}
+
 /** 내 기록 배열 → 통계 요약 */
 export function summarizeStats(runs: PersonalRun[]): StatsSummary {
   const today = todayISO();
@@ -184,13 +202,32 @@ export function summarizeStats(runs: PersonalRun[]): StatsSummary {
     }
   }
 
+  // 희소 버킷 → 빈 기간 0 채움(연속 타임라인). 데이터가 한 기간에 몰려도 0 기준선에서
+  // 솟아오르는 제대로 된 그래프가 된다(점 1개라 안 그려지던 문제 해결).
+  const monthlySparse = bucketize(runs, (r) => monthKey(r.run_date));
+  const weeklySparse = bucketize(runs, (r) => startOfWeekISO(r.run_date));
+  const minKey = (earliest: string | undefined, floor: string) =>
+    earliest && earliest < floor ? earliest : floor;
+  const monthly = runs.length
+    ? fillBuckets(
+        monthlySparse,
+        enumerateMonths(minKey(monthlySparse[0]?.key, monthKeyMinus(curMonth, MONTH_SPAN - 1)), curMonth)
+      )
+    : [];
+  const weekly = runs.length
+    ? fillBuckets(
+        weeklySparse,
+        enumerateWeeks(minKey(weeklySparse[0]?.key, weekKeyMinus(curWeek, WEEK_SPAN - 1)), curWeek)
+      )
+    : [];
+
   return {
     total,
     thisMonth,
     thisWeek,
     runCount: runs.length,
-    monthly: bucketize(runs, (r) => monthKey(r.run_date)),
-    weekly: bucketize(runs, (r) => startOfWeekISO(r.run_date)),
+    monthly,
+    weekly,
     avgPaceSec: timedDist > 0 ? timedSec / timedDist : 0,
     longestKm,
     longestDurationSec,

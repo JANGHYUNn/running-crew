@@ -126,8 +126,14 @@ async function webhook(request: Request, env: Env): Promise<Response> {
     return json({ error: "bad secret" }, 401);
   }
 
-  // 분석 완료(GPS 준비됨) 이벤트만 처리.
-  const events = (body.events ?? []).filter((e) => e.type === "ACTIVITY_ANALYZED");
+  // 활동 관련 이벤트를 폭넓게 처리(가민→icu 직결 기준. Strava 경유 활동엔 웹훅이 오지 않음).
+  //   ACTIVITY_UPLOADED : 새 활동 업로드. 새 런을 잡는 주 경로(이게 빠져 새 런이 지도에 안 떴음).
+  //   ACTIVITY_ANALYZED : 기존 활동 재분석. 업로드 때 GPS 가 늦으면 여기서 점령된다.
+  //   ACTIVITY_UPDATED  : 이름 변경 등 수정.
+  // 같은 활동이 여러 이벤트로 와도 territory_activities 로 1회만 점령(idempotent). 단, GPS 0좌표면
+  // '사용함' 기록을 남기지 않아(handleActivity), 나중에 GPS 가 붙은 웹훅이 점령할 수 있게 한다.
+  const ACTIVITY_EVENTS = new Set(["ACTIVITY_UPLOADED", "ACTIVITY_ANALYZED", "ACTIVITY_UPDATED"]);
+  const events = (body.events ?? []).filter((e) => e.type != null && ACTIVITY_EVENTS.has(e.type));
   let retryable = false;
   for (const ev of events) {
     try {
@@ -164,13 +170,18 @@ async function handleActivity(ev: IcuEvent, env: Env): Promise<void> {
   }
 
   const coords = await fetchRouteCoords(activityId, tok.access_token);
+  // GPS 좌표가 없으면(업로드 직후 분석 전 / 실내 활동) 점령을 보류하고 '사용함' 기록도 남기지 않는다.
+  // 기록을 남기면 나중에 GPS 가 붙은 ACTIVITY_ANALYZED 웹훅이 와도 -1(이미 사용)로 영구 스킵되기 때문.
+  if (coords.length === 0) {
+    console.log(`[icu-webhook] ${activityId}: athlete=${athleteId} GPS 없음(coords=0) → 점령 보류(미기록)`);
+    return;
+  }
   // 경로 → 점령 셀(버퍼 밴드 + 닫힌 루프 내부 채움).
   const payload = [...routeToTerritory(coords).values()].map((c) => ({
     k: `${c.x}_${c.y}`,
     x: c.x,
     y: c.y,
   }));
-  // GPS 없으면 payload 가 빈 배열 → 그래도 호출(서버에 '사용함' 기록돼 재처리 안 됨).
   // start_date_local 은 오프셋이 없으므로 KST 로 보정(아래 toAbsoluteISO). timestamp 는 이미 오프셋 포함.
   const claimedAt = toAbsoluteISO(
     ev.activity?.start_date_local ?? ev.timestamp ?? new Date().toISOString()

@@ -234,7 +234,15 @@ async function fetchRouteCoords(
   const lng = s.data2;
   const n = Math.min(lat.length, lng.length);
   const coords: [number, number][] = [];
-  for (let i = 0; i < n; i++) coords.push([lng[i], lat[i]]);
+  for (let i = 0; i < n; i++) {
+    const lo = lng[i];
+    const la = lat[i];
+    // GPS 드롭 샘플은 스트림에 null 로 들어온다. JS 에선 null/스텝 = 0 → 셀 (0,0)('Null Island')로
+    // 둔갑해 보간·bbox 가 폭주(CPU 초과)한다. 비유한값(null/NaN)과 정확한 (0,0)만 버린다.
+    // ⚠️ 위치(한국권 등)로는 거르지 않는다 — 해외 런·전지훈련 좌표는 그대로 점령돼야 한다.
+    if (!Number.isFinite(lo) || !Number.isFinite(la) || (lo === 0 && la === 0)) continue;
+    coords.push([lo, la]);
+  }
   return coords;
 }
 

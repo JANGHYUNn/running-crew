@@ -13,6 +13,13 @@ export const CELL_M = 50;
 // 경로를 면으로 만들기 위한 버퍼(셀 단위 팽창 반경). 열린 경로(시작≠종료)도 밴드형 폴리곤이 된다.
 export const BUFFER_CELLS = 1;
 
+// ── CPU 폭주 방지 상한(지리 무관 보험) ───────────────────────────────
+// 정상 런은 단일 구간 수~수십 step, bbox 수천~수만 칸. 이상치 좌표(예: GPS 드롭으로 생긴 null→(0,0))가
+// 섞이면 보간 step·bbox 가 수십만~수백억으로 폭발해 Worker 10ms CPU 한도를 넘긴다(실제 장애 발생).
+// 좌표 자체는 버리지 않고(=해외 런 보존) 계산량만 막는다.
+const MAX_SEG_STEPS = 5_000; // 단일 구간 보간 상한(약 80km 구간 상당). 넘으면 잘라서 보간.
+const MAX_FILL_CELLS = 2_000_000; // 닫힌루프 채우기 bbox 상한(약 70km×70km). 넘으면 채우기 스킵(밴드만).
+
 // 점령은 영구 유지(시간 경과로 사라지지 않음). 소유권은 "최신 점령 우선"으로만 바뀐다(뺏기).
 // (예전엔 최근 N일만 인정해 감쇠시켰으나, 사용자 요청으로 영구 보존으로 변경.)
 
@@ -55,9 +62,11 @@ export function routeToCells(coords: [number, number][]): Map<string, Cell> {
     const [lng, lat] = coords[i];
     const dx = lng - plng;
     const dy = lat - plat;
-    const steps = Math.max(
-      1,
-      Math.ceil(Math.max(Math.abs(dx) / LNG_STEP, Math.abs(dy) / LAT_STEP) * 3)
+    // 보간 step 상한(지리 무관 CPU 보험). 정상 구간은 수~수십 step. 수천을 넘으면 좌표가 비정상적으로
+    // 멀리 튄 것(글리치) → 상한으로 잘라 routeToCells 가 폭주(수십만 step)하지 않게 한다.
+    const steps = Math.min(
+      MAX_SEG_STEPS,
+      Math.max(1, Math.ceil(Math.max(Math.abs(dx) / LNG_STEP, Math.abs(dy) / LAT_STEP) * 3))
     );
     for (let s = 1; s <= steps; s++) {
       add(plng + (dx * s) / steps, plat + (dy * s) / steps);
@@ -102,6 +111,9 @@ function fillEnclosed(cells: Map<string, Cell>): Map<string, Cell> {
   minY -= 1;
   maxX += 1;
   maxY += 1;
+
+  // bbox 가 비정상적으로 넓으면(이상치 좌표) 내부 채우기 이중루프가 CPU 를 태운다 → 채우기 스킵, 밴드만 점령.
+  if ((maxX - minX + 1) * (maxY - minY + 1) > MAX_FILL_CELLS) return new Map(cells);
 
   const outside = new Set<string>();
   const stack: Cell[] = [{ x: minX, y: minY }];

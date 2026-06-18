@@ -13,6 +13,8 @@ export interface Course {
   id: string;
   /** 코스 이름 */
   name: string;
+  /** 지역 그룹(예: "부천", "청라"). 지도 범례의 지역 칩 필터 단위 — 같은 값끼리 한 칩으로 묶인다. */
+  region: string;
   /** 거리(km) */
   distance: number;
   /** 한 줄 설명(노면·특징 등) */
@@ -21,6 +23,19 @@ export interface Course {
   color: string;
   /** [lng, lat] 좌표 배열 (GeoJSON LineString 순서) */
   coords: [number, number][];
+}
+
+/** 코스 목록에서 지역 칩에 쓸 지역명을 첫 등장 순서대로 중복 없이 추출. */
+export function regionsOf(courses: Course[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of courses) {
+    if (c.region && !seen.has(c.region)) {
+      seen.add(c.region);
+      out.push(c.region);
+    }
+  }
+  return out;
 }
 
 /** id 중복 시 뒤에 -2, -3… 붙여 고유하게. (강조/범례가 id 로 코스를 구분하므로 필수) */
@@ -37,6 +52,7 @@ export const COURSES: Course[] = [
   {
     id: "simgokcheon",
     name: "심곡천",
+    region: "부천",
     distance: 11.18,
     color: "#fc5200",
     coords: [
@@ -195,6 +211,7 @@ export const COURSES: Course[] = [
   {
     id: "cheongna-lake",
     name: "청라호수공원",
+    region: "인천",
     distance: 4.28,
     color: "#fc5200",
     coords: [
@@ -353,6 +370,7 @@ export const COURSES: Course[] = [
   {
     id: "my-course",
     name: "심곡공",
+    region: "인천",
     distance: 14.2,
     color: "#fc5200",
     coords: [
@@ -511,6 +529,7 @@ export const COURSES: Course[] = [
   {
     id: "my-course",
     name: "계양산 둘레길",
+    region: "인천",
     distance: 7.02,
     color: "#fc5200",
     coords: [
@@ -669,6 +688,7 @@ export const COURSES: Course[] = [
   {
     id: "my-course",
     name: "연수 둘레길",
+    region: "인천",
     distance: 10.4,
     color: "#fc5200",
     coords: [
@@ -827,6 +847,7 @@ export const COURSES: Course[] = [
   {
     id: "course-37486-126711",
     name: "부평공원",
+    region: "인천",
     distance: 1.47,
     color: "#fc5200",
     coords: [

@@ -18,7 +18,7 @@ import {
 } from "@/lib/icu";
 import { cellsToPolygons, colorForUser, type Cell } from "@/lib/territory";
 import { fetchCells, type OwnedCell } from "@/lib/territoryStore";
-import { COURSES, withUniqueIds } from "@/lib/courses";
+import { COURSES, regionsOf, withUniqueIds, type Course } from "@/lib/courses";
 import type { Territory } from "@/components/CrewMap";
 import BottomSheet from "@/components/BottomSheet";
 import SupabaseNotice from "@/components/SupabaseNotice";
@@ -39,8 +39,37 @@ export default function MapPage() {
   const [showCourses, setShowCourses] = useState(true);
   // 겹치는 경로 구분용: 탭한 코스만 강조(한 번 더 탭하면 해제).
   const [highlightedCourseId, setHighlightedCourseId] = useState<string | null>(null);
+  // 하단 시트 탭: 땅따먹기 순위 / 추천 경로 브라우저.
+  const [sheetTab, setSheetTab] = useState<"territory" | "courses">("territory");
+  // 추천 경로: 지역 칩 필터(null=전체) + 이름 검색. 코스 30~40개 대비 지역으로 좁히고 검색으로 점프.
+  const [activeRegion, setActiveRegion] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   // id 중복(변환기 기본 id) 방지 — 강조/범례가 id 로 구분하므로 고유화 필수.
   const courses = useMemo(() => withUniqueIds(COURSES), []);
+  const regions = useMemo(() => regionsOf(courses), [courses]);
+  // 지도에 그릴 코스: 지역 선택 시 그 지역만(라인 과밀·화면 가림 방지). 전체면 모두.
+  const visibleCourses = useMemo(
+    () => (activeRegion ? courses.filter((c) => c.region === activeRegion) : courses),
+    [courses, activeRegion]
+  );
+  // 시트 리스트에 보일 코스: 검색어가 있으면 전 지역에서 이름 매칭, 없으면 선택 지역.
+  const listCourses = useMemo(() => {
+    const q = normalize(query.trim());
+    if (!q) return visibleCourses;
+    return courses.filter((c) => normalize(c.name).includes(q));
+  }, [courses, visibleCourses, query]);
+
+  // 지역 칩 선택: 지도·리스트를 그 지역으로 좁히고 강조는 해제(다른 지역 코스였을 수 있으므로).
+  function selectRegion(r: string | null) {
+    setActiveRegion(r);
+    setHighlightedCourseId(null);
+  }
+  // 코스 탭: 검색으로 다른 지역 코스를 골랐어도 지도에 보이도록 그 지역으로 전환 + 강조 토글.
+  function selectCourse(c: Course) {
+    setActiveRegion(c.region);
+    setQuery("");
+    setHighlightedCourseId((cur) => (cur === c.id ? null : c.id));
+  }
 
   // 마운트 시 로그인·연동 상태 확인. 첫 await 전엔 setState 를 두지 않는다(이펙트 규칙).
   useEffect(() => {
@@ -163,15 +192,16 @@ export default function MapPage() {
           <div className="absolute inset-0">
             <CrewMap
               territories={territories}
-              courses={courses}
+              courses={visibleCourses}
               showTerritory={showTerritory}
               showCourses={showCourses}
+              fitCourses={activeRegion !== null}
               highlightedCourseId={showCourses ? highlightedCourseId : null}
             />
           </div>
 
-          {/* 좌상단 레이어 토글 + 코스 범례 */}
-          <div className="absolute left-3 top-3 z-10 flex max-w-[60%] flex-col items-start gap-1.5">
+          {/* 좌상단 레이어 표시 토글(코스 목록은 하단 시트로 이동) */}
+          <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1.5">
             <LayerToggle
               active={showTerritory}
               onClick={() => setShowTerritory((v) => !v)}
@@ -184,34 +214,6 @@ export default function MapPage() {
             >
               🏃 추천 경로
             </LayerToggle>
-
-            {showCourses && courses.length > 0 && (
-              <div className="mt-1 rounded-xl bg-white/90 p-1.5 shadow-sm ring-1 ring-black/5 backdrop-blur">
-                {courses.map((c) => {
-                  const on = highlightedCourseId === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() =>
-                        setHighlightedCourseId((cur) => (cur === c.id ? null : c.id))
-                      }
-                      className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs ${
-                        on ? "bg-neutral-900 text-white" : "text-neutral-700"
-                      }`}
-                    >
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
-                        style={{ backgroundColor: c.color }}
-                      />
-                      <span className="truncate font-bold">{c.name}</span>
-                      <span className={on ? "text-white/70" : "text-neutral-400"}>
-                        {c.distance}km
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           {/* 상단 떠있는 상태칩 / 에러 토스트 */}
@@ -226,61 +228,185 @@ export default function MapPage() {
             )}
           </div>
 
-          {/* 바텀시트: peek 에 요약, 펼치면 순위 */}
+          {/* 바텀시트: peek 에 탭+요약, 펼치면 순위 / 코스 리스트 */}
           <BottomSheet>
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-sm">
-                  <span className="font-bold text-neutral-900">🚩 내 땅 {myCount.toLocaleString()}칸</span>
-                  <span className="text-neutral-400"> · 전체 {totalCount.toLocaleString()}칸</span>
-                </div>
-                <p className="mt-0.5 text-[11px] text-neutral-400">
-                  달리면 자동으로 칠해져요 · 같은 칸을 더 최근에 달린 사람이 차지해요
-                </p>
-              </div>
-              <button onClick={handleDisconnect} className="text-xs text-neutral-400 underline">
-                연동 해제
-              </button>
+            {/* 탭 전환 (peek 에 항상 보임) */}
+            <div className="flex gap-1 rounded-xl bg-neutral-100 p-1">
+              <SheetTab active={sheetTab === "territory"} onClick={() => setSheetTab("territory")}>
+                🚩 땅따먹기
+              </SheetTab>
+              <SheetTab active={sheetTab === "courses"} onClick={() => setSheetTab("courses")}>
+                🏃 추천 경로 {courses.length}
+              </SheetTab>
             </div>
 
-            {leaderboard.length > 0 ? (
-              <div className="mt-4">
-                <h2 className="text-sm font-bold text-neutral-700">🏆 땅따먹기 순위</h2>
-                <ol className="mt-2 space-y-1.5">
-                  {leaderboard.map((row, i) => {
-                    const me = row.userId === user?.id;
-                    return (
-                      <li key={row.userId} className="flex items-center gap-2 text-sm">
-                        <span className="w-5 shrink-0 text-center font-bold text-neutral-400">
-                          {i + 1}
-                        </span>
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-sm"
-                          style={{ backgroundColor: colorForUser(row.userId) }}
-                        />
-                        <span
-                          className={`truncate ${me ? "font-bold text-neutral-900" : "text-neutral-700"}`}
-                        >
-                          {row.name}
-                          {me && " (나)"}
-                        </span>
-                        <span className="ml-auto shrink-0 tabular-nums text-neutral-500">
-                          {row.count.toLocaleString()}칸
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
+            {sheetTab === "territory" ? (
+              <div className="mt-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-sm">
+                      <span className="font-bold text-neutral-900">🚩 내 땅 {myCount.toLocaleString()}칸</span>
+                      <span className="text-neutral-400"> · 전체 {totalCount.toLocaleString()}칸</span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-neutral-400">
+                      달리면 자동으로 칠해져요 · 같은 칸을 더 최근에 달린 사람이 차지해요
+                    </p>
+                  </div>
+                  <button onClick={handleDisconnect} className="text-xs text-neutral-400 underline">
+                    연동 해제
+                  </button>
+                </div>
+
+                {leaderboard.length > 0 ? (
+                  <div className="mt-4">
+                    <h2 className="text-sm font-bold text-neutral-700">🏆 땅따먹기 순위</h2>
+                    <ol className="mt-2 space-y-1.5">
+                      {leaderboard.map((row, i) => {
+                        const me = row.userId === user?.id;
+                        return (
+                          <li key={row.userId} className="flex items-center gap-2 text-sm">
+                            <span className="w-5 shrink-0 text-center font-bold text-neutral-400">
+                              {i + 1}
+                            </span>
+                            <span
+                              className="h-3 w-3 shrink-0 rounded-sm"
+                              style={{ backgroundColor: colorForUser(row.userId) }}
+                            />
+                            <span
+                              className={`truncate ${me ? "font-bold text-neutral-900" : "text-neutral-700"}`}
+                            >
+                              {row.name}
+                              {me && " (나)"}
+                            </span>
+                            <span className="ml-auto shrink-0 tabular-nums text-neutral-500">
+                              {row.count.toLocaleString()}칸
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
+                ) : (
+                  <p className="mt-4 rounded-xl bg-neutral-100 p-3 text-center text-sm text-neutral-500">
+                    아직 점령된 땅이 없어요. 한 번 달리면 자동으로 칠해져요.
+                  </p>
+                )}
               </div>
             ) : (
-              <p className="mt-4 rounded-xl bg-neutral-100 p-3 text-center text-sm text-neutral-500">
-                아직 점령된 땅이 없어요. 한 번 달리면 자동으로 칠해져요.
-              </p>
+              <div className="mt-3">
+                {/* 지역 칩(가로 스크롤) — 한 줄로 끝, 탭하면 그 지역만 지도·리스트에 */}
+                <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <RegionChip active={activeRegion === null} onClick={() => selectRegion(null)}>
+                    전체 {courses.length}
+                  </RegionChip>
+                  {regions.map((r) => (
+                    <RegionChip key={r} active={activeRegion === r} onClick={() => selectRegion(r)}>
+                      {r} {courses.filter((c) => c.region === r).length}
+                    </RegionChip>
+                  ))}
+                </div>
+
+                {/* 이름 검색(코스 많아지면 점프용) */}
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="코스 이름 검색"
+                  className="mt-2 w-full rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none placeholder:text-neutral-400"
+                />
+
+                {/* 코스 리스트(선택 지역/검색 결과). 탭하면 강조 + 지도 이동 */}
+                {listCourses.length > 0 ? (
+                  <ul className="mt-2 space-y-1">
+                    {listCourses.map((c) => {
+                      const on = highlightedCourseId === c.id;
+                      return (
+                        <li key={c.id}>
+                          <button
+                            onClick={() => selectCourse(c)}
+                            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm ${
+                              on ? "bg-neutral-900 text-white" : "bg-neutral-50 text-neutral-800"
+                            }`}
+                          >
+                            <span
+                              className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10"
+                              style={{ backgroundColor: c.color }}
+                            />
+                            <span className="truncate font-bold">{c.name}</span>
+                            {query.trim() && (
+                              <span className={`shrink-0 text-xs ${on ? "text-white/60" : "text-neutral-400"}`}>
+                                {c.region}
+                              </span>
+                            )}
+                            <span
+                              className={`ml-auto shrink-0 tabular-nums text-xs ${on ? "text-white/70" : "text-neutral-400"}`}
+                            >
+                              {c.distance}km
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="mt-3 rounded-xl bg-neutral-100 p-3 text-center text-sm text-neutral-500">
+                    {query.trim() ? "검색 결과가 없어요." : "이 지역엔 코스가 없어요."}
+                  </p>
+                )}
+              </div>
             )}
           </BottomSheet>
         </>
       )}
     </div>
+  );
+}
+
+// 한글 검색: 파일이 NFD(분해형)로 저장될 수 있어 NFC 로 정규화 후 비교(안 그러면 매칭 실패).
+function normalize(s: string): string {
+  return s.normalize("NFC").toLowerCase();
+}
+
+function SheetTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex-1 rounded-lg py-1.5 text-sm font-bold transition ${
+        active ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function RegionChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold transition ${
+        active ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-600"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

@@ -35,6 +35,7 @@ function courseId(name: string, coords: LngLat[]): string {
 export default function CourseImportPage() {
   const [text, setText] = useState("");
   const [name, setName] = useState("");
+  const [region, setRegion] = useState("");
   const [desc, setDesc] = useState("");
   const [color, setColor] = useState("#fc5200"); // Strava 오렌지
   const [coords, setCoords] = useState<LngLat[]>([]);
@@ -83,12 +84,13 @@ export default function CourseImportPage() {
     return {
       id: courseId(name, coords),
       name: name || "내 코스",
+      region: region.trim() || "기타",
       distance: distanceKm,
       desc: desc || undefined,
       color,
       coords,
     };
-  }, [coords, name, desc, color, distanceKm]);
+  }, [coords, name, region, desc, color, distanceKm]);
 
   const snippet = useMemo(
     () =>
@@ -164,6 +166,17 @@ export default function CourseImportPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="청라호수공원 한바퀴"
+                className="mt-1 block w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="col-span-2 block">
+              <span className="text-xs font-bold text-neutral-600">
+                지역 <span className="font-normal text-neutral-400">(범례 칩 그룹 · 예: 부천, 인천)</span>
+              </span>
+              <input
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                placeholder="부천"
                 className="mt-1 block w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
               />
             </label>

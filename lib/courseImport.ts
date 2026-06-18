@@ -98,6 +98,7 @@ export function routeDistanceKm(coords: LngLat[]): number {
 export function toCourseSnippet(c: {
   id: string;
   name: string;
+  region: string;
   distance: number;
   desc?: string;
   color: string;
@@ -111,6 +112,7 @@ export function toCourseSnippet(c: {
   return `  {
     id: ${JSON.stringify(c.id)},
     name: ${JSON.stringify(c.name)},
+    region: ${JSON.stringify(c.region)},
     distance: ${Number(c.distance.toFixed(1))},${descLine}
     color: ${JSON.stringify(c.color)},
     coords: [

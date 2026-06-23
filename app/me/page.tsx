@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import {
   Area,
@@ -14,14 +13,7 @@ import {
 } from "recharts";
 import { crew } from "@/lib/crew";
 import { supabaseReady } from "@/lib/supabase";
-import {
-  avatarOf,
-  getCurrentUser,
-  nicknameOf,
-  onAuthChange,
-  signInWithKakao,
-  signOut,
-} from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 import {
   addPersonalRun,
   deletePersonalRun,
@@ -30,7 +22,6 @@ import {
   getCrewRuns,
   listMyRuns,
   summarizeStats,
-  upsertMyProfile,
   type PersonalRun,
   type RankRow,
 } from "@/lib/stats";
@@ -49,7 +40,7 @@ import { PacePicker } from "@/components/DurationPicker";
 import SupabaseNotice from "@/components/SupabaseNotice";
 
 export default function MePage() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, signIn } = useAuth();
 
   // 크루 전체 데이터(로그인 없이도 조회)
   const [crewRuns, setCrewRuns] = useState<PersonalRun[]>([]);
@@ -60,17 +51,7 @@ export default function MePage() {
   const [myRuns, setMyRuns] = useState<PersonalRun[]>([]);
   const [formOpen, setFormOpen] = useState(false);
 
-  // 세션 추적: 초기 1회 + 변화 구독(카카오 콜백 복귀 포함)
-  useEffect(() => {
-    if (!supabaseReady) return;
-    getCurrentUser().then(setUser);
-    return onAuthChange(setUser);
-  }, []);
-
-  // 로그인되면 프로필 upsert(랭킹에 닉네임·아바타 노출)
-  useEffect(() => {
-    if (user) upsertMyProfile(user).catch(() => {});
-  }, [user]);
+  // 세션·프로필 동기화는 전역 AuthProvider 가 담당(여기선 user 만 구독).
 
   const reloadCrew = useCallback(async () => {
     const [runs, rank] = await Promise.all([getCrewRuns(), getCrewRanking()]);
@@ -120,7 +101,7 @@ export default function MePage() {
   async function onAddClick() {
     if (!user) {
       try {
-        await signInWithKakao();
+        await signIn();
       } catch (e) {
         alert(e instanceof Error ? e.message : "로그인 실패");
       }
@@ -131,35 +112,10 @@ export default function MePage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">📊 크루 기록·통계</h1>
-          <p className="text-xs text-neutral-400">{crew.name}</p>
-        </div>
-        {user ? (
-          <div className="flex items-center gap-2">
-            {avatarOf(user) ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarOf(user)!}
-                alt=""
-                className="h-8 w-8 rounded-full object-cover"
-              />
-            ) : null}
-            <span className="text-sm font-medium">{nicknameOf(user)}</span>
-            <button
-              onClick={() => signOut()}
-              className="text-xs text-neutral-400 hover:text-neutral-600"
-            >
-              로그아웃
-            </button>
-          </div>
-        ) : (
-          <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-600">
-            홈
-          </Link>
-        )}
+      {/* 헤더 — 로그인/프로필은 전역 헤더로 이동 */}
+      <div>
+        <h1 className="text-xl font-bold">📊 크루 기록·통계</h1>
+        <p className="text-xs text-neutral-400">{crew.name}</p>
       </div>
 
       {/* 통계 — 대상(크루/개인)·지표·기간 선택 */}

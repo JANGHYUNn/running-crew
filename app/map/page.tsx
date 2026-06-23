@@ -6,10 +6,9 @@
 // 규칙: 점령은 영구 유지(안 사라짐) · 최신 점령 우선(뺏기) · 한 활동 1회.
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import type { User } from "@supabase/supabase-js";
 import { crew } from "@/lib/crew";
 import { supabaseReady } from "@/lib/supabase";
-import { getCurrentUser, signInWithKakao } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 import {
   disconnectIcu,
   getIcuConnection,
@@ -29,7 +28,7 @@ const CrewMap = dynamic(() => import("@/components/CrewMap"), { ssr: false });
 const mapboxConfigured = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 
 export default function MapPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, loading: authLoading, signIn } = useAuth();
   const [checking, setChecking] = useState(true);
   const [connected, setConnected] = useState(false);
   const [cells, setCells] = useState<OwnedCell[]>([]);
@@ -71,24 +70,26 @@ export default function MapPage() {
     setHighlightedCourseId((cur) => (cur === c.id ? null : c.id));
   }
 
-  // 마운트 시 로그인·연동 상태 확인. 첫 await 전엔 setState 를 두지 않는다(이펙트 규칙).
+  // 로그인 상태(전역)가 정해지면 icu 연동·점령현황 확인. 로그인 변화에 반응.
   useEffect(() => {
-    if (!supabaseReady) return;
+    if (!supabaseReady || authLoading) return;
+    if (!user) {
+      setConnected(false);
+      setCells([]);
+      setChecking(false);
+      return;
+    }
     let alive = true;
+    setChecking(true);
     (async () => {
       try {
-        const u = await getCurrentUser();
+        const conn = await getIcuConnection();
         if (!alive) return;
-        setUser(u);
-        if (u) {
-          const conn = await getIcuConnection();
+        setConnected(Boolean(conn));
+        if (conn) {
+          const cs = await fetchCells(); // 크루 전체 점령 현황
           if (!alive) return;
-          setConnected(Boolean(conn));
-          if (conn) {
-            const cs = await fetchCells(); // 크루 전체 점령 현황
-            if (!alive) return;
-            setCells(cs);
-          }
+          setCells(cs);
         }
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : "확인 실패");
@@ -99,7 +100,7 @@ export default function MapPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [user, authLoading]);
 
   // 셀을 소유자별로 묶어 합쳐진 폴리곤으로(렌더용). 리더보드는 소유자별 칸 수 집계.
   const territories = useMemo<Territory[]>(() => {
@@ -147,7 +148,7 @@ export default function MapPage() {
   // 헤더(h-14=3.5rem) 아래를 꽉 채우는 풀스크린 컨테이너. 시트는 이 안에서 absolute.
   return (
     <div className="relative h-[calc(100dvh-3.5rem)] w-full overflow-hidden bg-neutral-100">
-      {checking ? (
+      {authLoading || checking ? (
         <p className="pt-20 text-center text-neutral-400">확인 중…</p>
       ) : !user ? (
         <CenterCard>
@@ -155,7 +156,7 @@ export default function MapPage() {
             먼저 카카오 로그인이 필요해요. (내 계정에 연동을 묶어둡니다)
           </p>
           <button
-            onClick={() => signInWithKakao()}
+            onClick={() => signIn()}
             className="mt-4 rounded-xl bg-[#FEE500] px-5 py-2.5 text-sm font-bold text-black"
           >
             카카오로 로그인

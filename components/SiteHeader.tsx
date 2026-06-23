@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { crew } from "@/lib/crew";
+import { useAuth } from "@/components/AuthProvider";
+import { avatarOf, nicknameOf } from "@/lib/auth";
 
 export default function SiteHeader() {
   const pathname = usePathname();
@@ -55,13 +57,66 @@ export default function SiteHeader() {
           <span style={{ color: crew.primary }}>{crew.name}</span>
         </Link>
 
-        {/* 오른쪽: 데스크탑에서만 태그라인(자리 균형용) */}
+        {/* 오른쪽: 전역 카카오 로그인/프로필 */}
         <div className="flex justify-end">
-          <span className="hidden truncate text-xs text-neutral-400 sm:inline">
-            {crew.tagline}
-          </span>
+          <AuthMenu />
         </div>
       </div>
     </header>
+  );
+}
+
+// 어디서나 보이는 로그인 상태. 로그인 강제는 안 함 — 글쓰기 페이지에서만 게이트.
+function AuthMenu() {
+  const { user, loading, ready, signIn, signOut } = useAuth();
+
+  // Supabase 미설정이면 로그인 개념이 없음 → 예전처럼 태그라인만.
+  if (!ready) {
+    return (
+      <span className="hidden truncate text-xs text-neutral-400 sm:inline">
+        {crew.tagline}
+      </span>
+    );
+  }
+
+  // 세션 확인 중엔 깜빡임 방지로 자리만 비워둔다.
+  if (loading) return <span className="h-8 w-8" aria-hidden />;
+
+  if (!user) {
+    return (
+      <button
+        onClick={() => signIn()}
+        className="rounded-full bg-[#FEE500] px-3 py-1.5 text-xs font-bold text-black transition active:opacity-80"
+      >
+        로그인
+      </button>
+    );
+  }
+
+  const avatar = avatarOf(user);
+  return (
+    <div className="flex items-center gap-2">
+      {avatar ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatar}
+          alt=""
+          className="h-8 w-8 rounded-full object-cover"
+        />
+      ) : (
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-neutral-200 text-sm">
+          🏃
+        </span>
+      )}
+      <span className="hidden max-w-[8rem] truncate text-sm font-medium sm:inline">
+        {nicknameOf(user)}
+      </span>
+      <button
+        onClick={() => signOut()}
+        className="text-xs text-neutral-400 transition hover:text-neutral-600"
+      >
+        로그아웃
+      </button>
+    </div>
   );
 }

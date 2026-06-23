@@ -28,6 +28,7 @@ export interface Run {
   note: string | null;
   image_url: string | null;
   image_hash: string | null;
+  user_id: string | null; // 소프트 귀속: 로그인 상태로 제출한 작성자(선택)
   created_at: string;
 }
 
@@ -171,6 +172,7 @@ export async function addRun(input: {
   note?: string | null;
   imageUrl?: string | null;
   imageHash?: string | null;
+  userId?: string | null; // 로그인 상태면 작성자 user_id 를 함께 남김(소프트 귀속)
 }): Promise<Run> {
   const row: Record<string, unknown> = {
     member_id: input.memberId,
@@ -181,6 +183,8 @@ export async function addRun(input: {
   };
   // 해시가 있을 때만 포함(컬럼 미추가 DB에서 수동입력은 계속 동작하도록)
   if (input.imageHash) row.image_hash = input.imageHash;
+  // 로그인 상태일 때만 포함(user_id 컬럼 미추가 DB·비로그인 제출은 계속 동작하도록)
+  if (input.userId) row.user_id = input.userId;
   return unwrap(await sb().from("runs").insert(row).select().single());
 }
 

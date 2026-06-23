@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SiteHeader from "@/components/SiteHeader";
+import { AuthProvider } from "@/components/AuthProvider";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import SplashScreen from "@/components/SplashScreen";
 import AppleSplashLinks from "@/components/AppleSplashLinks";
@@ -51,8 +52,10 @@ export default function RootLayout({
         <AppleSplashLinks />
         <SplashScreen />
         <ServiceWorkerRegister />
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
+        <AuthProvider>
+          <SiteHeader />
+          <main className="flex-1">{children}</main>
+        </AuthProvider>
       </body>
     </html>
   );

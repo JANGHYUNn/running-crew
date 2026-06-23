@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { crew } from "@/lib/crew";
 import { supabaseReady } from "@/lib/supabase";
+import { useAuth } from "@/components/AuthProvider";
 import { runOcr } from "@/lib/ocr";
 import {
   addRun,
@@ -25,6 +26,7 @@ import { formatDateDot, formatKm, todayISO } from "@/lib/format";
 import SupabaseNotice from "@/components/SupabaseNotice";
 
 export default function SubmitPage() {
+  const { user } = useAuth();
   const [season, setSeason] = useState<Season | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -137,6 +139,8 @@ export default function SubmitPage() {
         note: note.trim() || null,
         imageUrl,
         imageHash,
+        // 로그인 상태면 작성자를 조용히 함께 기록(소프트 귀속). 비로그인이면 null.
+        userId: user?.id ?? null,
       });
       setDistance("");
       setNote("");

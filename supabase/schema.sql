@@ -42,12 +42,18 @@ create table if not exists runs (
 -- 이미 runs 테이블이 있는 경우(기존 DB) 컬럼만 추가:
 alter table runs add column if not exists image_hash text;
 
+-- 소프트 귀속: 카카오 로그인 상태로 제출하면 작성자 user_id 를 함께 남긴다(선택, nullable).
+-- 로그인 강제는 아님 — 비로그인 제출도 계속 허용. 추후 본인확인·도용방지에 활용 가능.
+-- 계정 삭제 시엔 기록은 남기되 작성자만 비운다(on delete set null).
+alter table runs add column if not exists user_id uuid references auth.users(id) on delete set null;
+
 -- 조회 성능용 인덱스
 create index if not exists idx_teams_season  on teams(season_id);
 create index if not exists idx_members_team  on members(team_id);
 create index if not exists idx_runs_member   on runs(member_id);
 create index if not exists idx_runs_date     on runs(run_date);
 create index if not exists idx_runs_hash     on runs(image_hash);
+create index if not exists idx_runs_user     on runs(user_id);
 
 -- ── RLS: 전체 허용(신뢰 그룹 전제) ─────────────────────────
 -- ⚠️ anon 뿐 아니라 authenticated 도 허용해야 한다.

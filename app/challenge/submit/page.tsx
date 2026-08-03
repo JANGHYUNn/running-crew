@@ -286,7 +286,25 @@ export default function SubmitPage() {
               </p>
             )}
 
-            {runDate && (
+            {/* 상한을 다 채운 날은 입력 UI 자체를 안내로 대체한다.
+                (비활성 입력칸만 남기면 왜 막혔는지·다음에 뭘 할지 알 수 없고,
+                 무엇보다 사진을 고르는 순간 도는 OCR이 헛수고가 된다) */}
+            {runDate && dayRemaining <= 0 && (
+              <div className="mt-4 rounded-xl bg-neutral-50 p-4 text-center ring-1 ring-neutral-200">
+                <p className="font-bold text-neutral-700">
+                  ✅ 이 날짜는 다 채웠어요
+                </p>
+                <p className="mt-1 text-sm text-neutral-500">
+                  하루 최대 {DAILY_CAP_KM}km까지 인정되는데,{" "}
+                  {formatDateDot(runDate)}은 이미 {dayUsed}km가 등록됐어요.
+                </p>
+                <p className="mt-2 text-sm font-medium text-neutral-600">
+                  다른 날짜를 선택해 주세요.
+                </p>
+              </div>
+            )}
+
+            {runDate && dayRemaining > 0 && (
               <>
                 <label className="mt-4 block">
                   <span className="mb-1 block text-xs font-medium text-neutral-500">
@@ -301,11 +319,7 @@ export default function SubmitPage() {
                   />
                   {/* 크루 규칙 안내 — 초과분은 제출 시 자동으로 깎이므로 미리 알려준다 */}
                   <span className="mt-1 block text-xs text-neutral-400">
-                    {dayRemaining <= 0 ? (
-                      <span className="text-neutral-500">
-                        이 날짜는 하루 상한 {DAILY_CAP_KM}km를 이미 채웠어요
-                      </span>
-                    ) : dayUsed > 0 ? (
+                    {dayUsed > 0 ? (
                       <>
                         이 날짜에 {dayUsed}km 등록됨 · 남은 인정 거리{" "}
                         <b className="text-neutral-600">{dayRemaining}km</b>

@@ -8,13 +8,16 @@ import { useAuth } from "@/components/AuthProvider";
 import { runOcr } from "@/lib/ocr";
 import {
   addRun,
+  DAILY_CAP_KM,
   deleteRun,
   findRunByImageHash,
   getActiveSeason,
+  kmOnDate,
   listMembers,
   listRunsByMember,
   listTeams,
   memberLabel,
+  remainingKmOnDate,
   type Member,
   type Run,
   type Season,
@@ -129,6 +132,27 @@ export default function SubmitPage() {
         alert("이미 등록된 인증 이미지예요. (같은 이미지는 한 번만 등록돼요)");
         return;
       }
+
+      // 하루 상한(크루 규칙) 적용. 다른 기기에서 올렸을 수도 있으니 최신 기록으로 계산.
+      const latest = season ? await listRunsByMember(memberId, season) : myRuns;
+      setMyRuns(latest);
+      const remaining = remainingKmOnDate(latest, runDate);
+      if (remaining <= 0) {
+        alert(
+          `${formatDateDot(runDate)}은 이미 하루 상한 ${DAILY_CAP_KM}km를 채웠어요.`
+        );
+        return;
+      }
+      const saveKm = Math.min(km, remaining);
+      if (
+        saveKm < km &&
+        !confirm(
+          `하루 최대 ${DAILY_CAP_KM}km까지 인정돼요.\n` +
+            `${formatDateDot(runDate)}에 이미 ${kmOnDate(latest, runDate)}km가 있어서 ` +
+            `${km}km 중 ${saveKm}km만 등록됩니다. 계속할까요?`
+        )
+      )
+        return;
       // 압축 후 Storage 업로드 → 증빙 URL (목록용 썸네일도 함께)
       const [blob, thumb] = await Promise.all([
         compressImage(imageFile),
@@ -138,7 +162,7 @@ export default function SubmitPage() {
 
       await addRun({
         memberId,
-        distanceKm: km,
+        distanceKm: saveKm,
         runDate,
         note: note.trim() || null,
         imageUrl,
@@ -175,6 +199,9 @@ export default function SubmitPage() {
 
   const myTotal = myRuns.reduce((s, r) => s + Number(r.distance_km), 0);
   const distanceValid = Number(distance) > 0;
+  // 선택한 날짜의 하루 상한 소진 현황(안내용). 실제 적용은 제출 시 최신 기록으로 다시 계산.
+  const dayUsed = runDate ? kmOnDate(myRuns, runDate) : 0;
+  const dayRemaining = runDate ? remainingKmOnDate(myRuns, runDate) : DAILY_CAP_KM;
   const myMember = members.find((m) => m.id === memberId);
   const myName = myMember ? memberLabel(members, myMember) : "";
   const teamName = teams.find(
@@ -272,6 +299,21 @@ export default function SubmitPage() {
                     placeholder="8.24"
                     inputMode="decimal"
                   />
+                  {/* 크루 규칙 안내 — 초과분은 제출 시 자동으로 깎이므로 미리 알려준다 */}
+                  <span className="mt-1 block text-xs text-neutral-400">
+                    {dayRemaining <= 0 ? (
+                      <span className="text-neutral-500">
+                        이 날짜는 하루 상한 {DAILY_CAP_KM}km를 이미 채웠어요
+                      </span>
+                    ) : dayUsed > 0 ? (
+                      <>
+                        이 날짜에 {dayUsed}km 등록됨 · 남은 인정 거리{" "}
+                        <b className="text-neutral-600">{dayRemaining}km</b>
+                      </>
+                    ) : (
+                      <>규칙: 하루 최대 {DAILY_CAP_KM}km까지 인정돼요</>
+                    )}
+                  </span>
                 </label>
 
                 <label className="mt-4 block">

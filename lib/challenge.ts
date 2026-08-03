@@ -40,6 +40,33 @@ export function memberLabel(all: Member[], m: Member): string {
   return `${m.name} #${idx + 1}`;
 }
 
+// ── 크루 규칙 ──────────────────────────────────────────
+/**
+ * 하루 인정 거리 상한(km). 크루 규칙 — 많이 뛰는 사람에게 점수가 쏠리지 않게 한다.
+ * "하루 총합" 기준이라 오전 6km + 저녁 6km 도 합쳐서 이 값까지만 등록된다.
+ * 규칙이 바뀌면 이 값만 고치면 된다(과거 기록은 소급되지 않음).
+ */
+export const DAILY_CAP_KM = 11.1;
+
+/** 소수점 둘째자리 반올림 — 11.1 - 6 = 5.100000000000001 같은 부동소수 오차 제거 */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** 그 날짜에 이미 등록된 거리 합(km) */
+export function kmOnDate(runs: Run[], date: string): number {
+  return round2(
+    runs
+      .filter((r) => r.run_date === date)
+      .reduce((s, r) => s + Number(r.distance_km), 0)
+  );
+}
+
+/** 그 날짜에 더 등록할 수 있는 거리(km). 0이면 이미 상한을 채운 날. */
+export function remainingKmOnDate(runs: Run[], date: string): number {
+  return Math.max(0, round2(DAILY_CAP_KM - kmOnDate(runs, date)));
+}
+
 /** 리더보드의 조원 한 명(기여 거리·횟수) */
 export interface LeaderboardMember {
   member: Member;

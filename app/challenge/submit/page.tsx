@@ -20,10 +20,11 @@ import {
   type Season,
   type Team,
 } from "@/lib/challenge";
-import { compressImage } from "@/lib/image";
+import { compressImage, THUMB_QUALITY, THUMB_SIZE } from "@/lib/image";
 import { uploadProof } from "@/lib/storage";
 import { formatDateDot, formatKm, todayISO } from "@/lib/format";
 import SupabaseNotice from "@/components/SupabaseNotice";
+import ProofThumb from "@/components/ProofThumb";
 
 export default function SubmitPage() {
   const { user } = useAuth();
@@ -128,9 +129,12 @@ export default function SubmitPage() {
         alert("이미 등록된 인증 이미지예요. (같은 이미지는 한 번만 등록돼요)");
         return;
       }
-      // 압축 후 Storage 업로드 → 증빙 URL
-      const blob = await compressImage(imageFile);
-      const imageUrl = await uploadProof(blob);
+      // 압축 후 Storage 업로드 → 증빙 URL (목록용 썸네일도 함께)
+      const [blob, thumb] = await Promise.all([
+        compressImage(imageFile),
+        compressImage(imageFile, THUMB_SIZE, THUMB_QUALITY),
+      ]);
+      const imageUrl = await uploadProof(blob, thumb);
 
       await addRun({
         memberId,
@@ -370,20 +374,10 @@ export default function SubmitPage() {
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         {r.image_url && (
-                          <a
-                            href={r.image_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="shrink-0"
-                            title="인증 이미지 보기"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={r.image_url}
-                              alt="인증"
-                              className="h-10 w-10 rounded-md border border-neutral-200 object-cover"
-                            />
-                          </a>
+                          <ProofThumb
+                            url={r.image_url}
+                            className="h-10 w-10 rounded-md border border-neutral-200 object-cover"
+                          />
                         )}
                         <div className="min-w-0">
                           <span className="tnum font-bold">

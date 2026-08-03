@@ -9,6 +9,7 @@ import {
   listRunsByMember,
   listSeasons,
   memberLabel,
+  type LeaderboardMember,
   type LeaderboardTeam,
   type Member,
   type Run,
@@ -16,6 +17,8 @@ import {
 } from "@/lib/challenge";
 import { formatDateDot, formatKm, todayISO } from "@/lib/format";
 import SupabaseNotice from "@/components/SupabaseNotice";
+import ProofThumb from "@/components/ProofThumb";
+import Sheet from "@/components/Sheet";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -28,8 +31,8 @@ export default function ChallengePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
-  // 멤버 탭 시 그 사람 기록·증빙 열람(다른 사람 검증)
-  const [openMember, setOpenMember] = useState<Set<string>>(new Set());
+  // 멤버 탭 시 그 사람 기록·증빙을 시트로 열람(다른 사람 검증)
+  const [sheet, setSheet] = useState<LeaderboardMember | null>(null);
   const [memberRuns, setMemberRuns] = useState<Record<string, Run[]>>({});
 
   // 시즌 목록 로드(개수와 무관하게 항상 선택 화면을 먼저 보여준다)
@@ -66,7 +69,7 @@ export default function ChallengePage() {
         setBoard(b);
         setBoardSeasonId(s.id);
         setOpen(new Set());
-        setOpenMember(new Set());
+        setSheet(null);
         setMemberRuns({});
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : "불러오기 실패");
@@ -90,7 +93,7 @@ export default function ChallengePage() {
       const b = await getLeaderboard(selectedSeason);
       setBoard(b);
       setOpen(new Set());
-      setOpenMember(new Set());
+      setSheet(null);
       setMemberRuns({});
       setError(null);
     } catch (e) {
@@ -109,15 +112,11 @@ export default function ChallengePage() {
     });
   }
 
-  function toggleMember(memberId: string) {
-    const willOpen = !openMember.has(memberId);
-    setOpenMember((prev) => {
-      const next = new Set(prev);
-      if (next.has(memberId)) next.delete(memberId);
-      else next.add(memberId);
-      return next;
-    });
-    if (willOpen && memberRuns[memberId] === undefined && selectedSeason) {
+  // 멤버 기록은 시트로 연다(한 달치 30줄이 리더보드에 그대로 펼쳐지지 않도록).
+  function openRuns(row: LeaderboardMember) {
+    setSheet(row);
+    const memberId = row.member.id;
+    if (memberRuns[memberId] === undefined && selectedSeason) {
       listRunsByMember(memberId, selectedSeason)
         .then((runs) => setMemberRuns((prev) => ({ ...prev, [memberId]: runs })))
         .catch(() => setMemberRuns((prev) => ({ ...prev, [memberId]: [] })));
@@ -284,8 +283,9 @@ export default function ChallengePage() {
                         />
                       </div>
                       <div className="mt-1 text-xs text-neutral-400">
-                        조원 {row.members.length}명 · {row.runCount}회 · 펼쳐서 기여도
-                        보기
+                        조원 {row.members.length}명 · {row.runCount}회 ·{" "}
+                        {/* 펼친 뒤엔 안내가 낡으므로, 다음 동작(멤버 탭)을 알려준다 */}
+                        {isOpen ? "이름을 누르면 기록·인증사진" : "펼쳐서 기여도 보기"}
                       </div>
                     </div>
                     <span className="shrink-0 text-neutral-300">
@@ -295,89 +295,33 @@ export default function ChallengePage() {
 
                   {isOpen && (
                     <ul className="border-t border-neutral-100 bg-neutral-50/60 px-4 py-2">
-                      {row.members.map((m) => {
-                        const mOpen = openMember.has(m.member.id);
-                        const runs = memberRuns[m.member.id];
-                        return (
-                          <li
-                            key={m.member.id}
-                            className="border-b border-neutral-100 py-1 last:border-0"
+                      {row.members.map((m) => (
+                        <li
+                          key={m.member.id}
+                          className="border-b border-neutral-100 py-1 last:border-0"
+                        >
+                          <button
+                            onClick={() => openRuns(m)}
+                            disabled={m.runCount === 0}
+                            className="flex w-full items-center justify-between gap-2 py-1.5 text-left text-sm disabled:opacity-60"
                           >
-                            <button
-                              onClick={() => toggleMember(m.member.id)}
-                              className="flex w-full items-center justify-between py-1 text-left text-sm"
-                            >
-                              <span className="text-neutral-700">
-                                {memberLabel(allMembers, m.member)}
-                                {m.runCount > 0 && (
-                                  <span className="ml-1 text-xs text-neutral-300">
-                                    {mOpen ? "▲" : "▼"}
-                                  </span>
-                                )}
+                            <span className="truncate text-neutral-700">
+                              {memberLabel(allMembers, m.member)}
+                            </span>
+                            <span className="tnum shrink-0 text-neutral-500">
+                              {formatKm(m.km)} km
+                              <span className="ml-1 text-xs text-neutral-400">
+                                ({m.runCount})
                               </span>
-                              <span className="tnum text-neutral-500">
-                                {formatKm(m.km)} km
-                                <span className="ml-1 text-xs text-neutral-400">
-                                  ({m.runCount})
+                              {m.runCount > 0 && (
+                                <span className="ml-1.5 text-xs text-neutral-300">
+                                  ›
                                 </span>
-                              </span>
-                            </button>
-
-                            {mOpen && (
-                              <div className="py-1 pl-1">
-                                {runs === undefined ? (
-                                  <p className="text-xs text-neutral-400">
-                                    불러오는 중…
-                                  </p>
-                                ) : runs.length === 0 ? (
-                                  <p className="text-xs text-neutral-400">기록 없음</p>
-                                ) : (
-                                  <ul className="space-y-1.5">
-                                    {runs.map((r) => (
-                                      <li
-                                        key={r.id}
-                                        className="flex items-center gap-2 text-xs"
-                                      >
-                                        {r.image_url ? (
-                                          <a
-                                            href={r.image_url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="shrink-0"
-                                            title="인증 이미지 보기"
-                                          >
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img
-                                              src={r.image_url}
-                                              alt="인증"
-                                              className="h-9 w-9 rounded-md border border-neutral-200 object-cover"
-                                            />
-                                          </a>
-                                        ) : (
-                                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-dashed border-neutral-200 text-[9px] text-neutral-300">
-                                            없음
-                                          </span>
-                                        )}
-                                        <span className="tnum font-medium text-neutral-700">
-                                          {formatKm(Number(r.distance_km))}km
-                                        </span>
-                                        <span className="text-neutral-400">
-                                          {formatDateDot(r.run_date)}
-                                        </span>
-                                        {r.note && (
-                                          <span className="truncate text-neutral-400">
-                                            {r.note}
-                                          </span>
-                                        )}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
+                              )}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
                       {row.members.length === 0 && (
                         <li className="py-2 text-sm text-neutral-400">
                           조원이 없습니다
@@ -400,7 +344,55 @@ export default function ChallengePage() {
           시즌 · 조 관리
         </Link>
       </div>
+
+      {sheet && (
+        <Sheet
+          title={memberLabel(allMembers, sheet.member)}
+          subtitle={`${formatKm(sheet.km)} km · ${sheet.runCount}회${
+            selectedSeason ? ` · ${selectedSeason.name}` : ""
+          }`}
+          onClose={() => setSheet(null)}
+        >
+          <MemberRuns runs={memberRuns[sheet.member.id]} />
+        </Sheet>
+      )}
     </div>
+  );
+}
+
+/** 시트 안 기록 목록(최신순). 한 달치가 쌓여도 시트 안에서만 스크롤된다. */
+function MemberRuns({ runs }: { runs: Run[] | undefined }) {
+  if (runs === undefined)
+    return <p className="py-4 text-center text-sm text-neutral-400">불러오는 중…</p>;
+  if (runs.length === 0)
+    return <p className="py-4 text-center text-sm text-neutral-400">기록 없음</p>;
+
+  return (
+    <ul className="space-y-2">
+      {runs.map((r) => (
+        <li key={r.id} className="flex items-center gap-2.5 text-sm">
+          {r.image_url ? (
+            <ProofThumb
+              url={r.image_url}
+              className="h-11 w-11 rounded-lg border border-neutral-200 object-cover"
+            />
+          ) : (
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-dashed border-neutral-200 text-[9px] text-neutral-300">
+              없음
+            </span>
+          )}
+          <span className="tnum font-bold text-neutral-700">
+            {formatKm(Number(r.distance_km))}km
+          </span>
+          <span className="tnum text-xs text-neutral-400">
+            {formatDateDot(r.run_date)}
+          </span>
+          {r.note && (
+            <span className="truncate text-xs text-neutral-400">{r.note}</span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 

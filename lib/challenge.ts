@@ -40,12 +40,19 @@ export function memberLabel(all: Member[], m: Member): string {
   return `${m.name} #${idx + 1}`;
 }
 
+/** 리더보드의 조원 한 명(기여 거리·횟수) */
+export interface LeaderboardMember {
+  member: Member;
+  km: number;
+  runCount: number;
+}
+
 /** 리더보드 한 줄(조 단위) — 조원별 기여 포함 */
 export interface LeaderboardTeam {
   team: Team;
   totalKm: number;
   runCount: number;
-  members: { member: Member; km: number; runCount: number }[];
+  members: LeaderboardMember[];
 }
 
 function sb() {

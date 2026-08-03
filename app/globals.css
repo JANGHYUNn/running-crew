@@ -135,6 +135,49 @@ html[data-splash="leaving"] .splash {
   }
 }
 
+/* 모달 시트(components/Sheet.tsx) 등장 애니메이션.
+   모바일은 아래에서 올라오고(바텀시트), sm 이상은 살짝 떠오른다(가운데 카드). */
+.sheet__backdrop {
+  animation: sheetFade 0.2s ease forwards;
+}
+.sheet__panel {
+  animation: sheetUp 0.26s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes sheetFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@media (min-width: 640px) {
+  @keyframes sheetUp {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet__backdrop,
+  .sheet__panel {
+    animation: none;
+  }
+}
+
 /* 러닝 추천 코스 핀(지도 마커). --pin-color 는 코스 색으로 인라인 주입.
    ⚠️ transform 금지 — mapbox 가 마커 위치를 인라인 transform 으로 잡으므로 충돌함. */
 .course-pin {

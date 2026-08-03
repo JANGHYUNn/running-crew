@@ -1,6 +1,10 @@
 // 증빙 이미지 클라이언트 압축(업로드 용량 최소화 → 무료 Storage 유지).
 // 긴 변을 maxSize 로 줄이고 JPEG 로 인코딩. 투명 PNG(스트라바 공유 카드)는 흰 배경으로 평탄화.
 
+// 목록 썸네일 규격(40px 표시 × 레티나 여유). 장당 ~5KB 수준이라 원본 대비 egress 1/8.
+export const THUMB_SIZE = 200;
+export const THUMB_QUALITY = 0.6;
+
 /** File → 파일 내용 sha256 16진 문자열(동일 이미지 중복 업로드 차단용) */
 export async function sha256Hex(file: File): Promise<string> {
   const buf = await file.arrayBuffer();

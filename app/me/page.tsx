@@ -26,7 +26,13 @@ import {
   type RankRow,
 } from "@/lib/stats";
 import { runOcr } from "@/lib/ocr";
-import { compressImage, fileToDataUrl, sha256Hex } from "@/lib/image";
+import {
+  compressImage,
+  fileToDataUrl,
+  sha256Hex,
+  THUMB_QUALITY,
+  THUMB_SIZE,
+} from "@/lib/image";
 import { uploadProof } from "@/lib/storage";
 import {
   calcPace,
@@ -38,6 +44,7 @@ import {
 } from "@/lib/format";
 import { PacePicker } from "@/components/DurationPicker";
 import SupabaseNotice from "@/components/SupabaseNotice";
+import ProofThumb from "@/components/ProofThumb";
 
 export default function MePage() {
   const { user, signIn } = useAuth();
@@ -175,14 +182,10 @@ export default function MePage() {
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     {r.image_url && (
-                      <a href={r.image_url} target="_blank" rel="noreferrer" className="shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={r.image_url}
-                          alt="인증"
-                          className="h-10 w-10 rounded-md border border-neutral-200 object-cover"
-                        />
-                      </a>
+                      <ProofThumb
+                        url={r.image_url}
+                        className="h-10 w-10 rounded-md border border-neutral-200 object-cover"
+                      />
                     )}
                     <div className="min-w-0">
                       <span className="tnum font-bold">
@@ -342,8 +345,11 @@ function UploadForm({
         alert("이미 등록된 인증 이미지예요. (같은 이미지는 한 번만 등록돼요)");
         return;
       }
-      const blob = await compressImage(imageFile);
-      const imageUrl = await uploadProof(blob);
+      const [blob, thumb] = await Promise.all([
+        compressImage(imageFile),
+        compressImage(imageFile, THUMB_SIZE, THUMB_QUALITY),
+      ]);
+      const imageUrl = await uploadProof(blob, thumb);
       await addPersonalRun({
         userId: user.id,
         distanceKm: km,

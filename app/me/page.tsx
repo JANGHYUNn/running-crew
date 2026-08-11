@@ -39,12 +39,15 @@ import {
   formatDateDot,
   formatDuration,
   formatKm,
+  monthKey,
+  monthKeyShift,
+  monthRange,
   startOfWeekISO,
   todayISO,
 } from "@/lib/format";
 import { PacePicker } from "@/components/DurationPicker";
 import SupabaseNotice from "@/components/SupabaseNotice";
-import ProofThumb from "@/components/ProofThumb";
+import RunCalendar from "@/components/RunCalendar";
 
 export default function MePage() {
   const { user, signIn } = useAuth();
@@ -103,7 +106,35 @@ export default function MePage() {
 
   const myStats = useMemo(() => summarizeStats(myRuns), [myRuns]);
 
+  // 내 기록 달력이 보고 있는 달("YYYY-MM"). null 이면 가장 최근 기록이 있는 달.
+  const [monthCursor, setMonthCursor] = useState<string | null>(null);
+  const myMonths = useMemo(() => {
+    const keys = myRuns.map((r) => monthKey(r.run_date));
+    const now = monthKey(todayISO());
+    return {
+      latest: keys.length ? keys.reduce((a, b) => (b > a ? b : a)) : now,
+      earliest: keys.length ? keys.reduce((a, b) => (b < a ? b : a)) : now,
+      now,
+    };
+  }, [myRuns]);
+  const month = monthCursor ?? myMonths.latest;
+  const monthSpan = monthRange(month);
+  const monthRuns = myRuns.filter(
+    (r) => r.run_date >= monthSpan.start && r.run_date <= monthSpan.end
+  );
+  const monthKm = monthRuns.reduce((s, r) => s + Number(r.distance_km), 0);
+
   if (!supabaseReady) return <SupabaseNotice />;
+
+  async function deleteMyRun(id: string) {
+    if (!confirm("이 기록을 삭제할까요?")) return;
+    try {
+      await deletePersonalRun(id);
+      await Promise.all([reloadMine(), reloadCrew()]);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "삭제 실패");
+    }
+  }
 
   async function onAddClick() {
     if (!user) {
@@ -174,48 +205,43 @@ export default function MePage() {
               아직 기록이 없어요. 위 “내 기록 추가”로 첫 기록을 올려보세요!
             </p>
           ) : (
-            <ul className="divide-y divide-neutral-100 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-              {myRuns.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between px-4 py-3 text-sm"
+            // 기록이 쌓여도 목록이 길어지지 않도록 달 단위 달력으로 본다(챌린지 화면과 같은 뷰).
+            <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <button
+                  onClick={() => setMonthCursor(monthKeyShift(month, -1))}
+                  disabled={month <= myMonths.earliest}
+                  className="rounded-lg px-2 py-1 text-neutral-400 disabled:opacity-30"
+                  aria-label="이전 달"
                 >
-                  <div className="flex min-w-0 items-center gap-2">
-                    {r.image_url && (
-                      <ProofThumb
-                        url={r.image_url}
-                        className="h-10 w-10 rounded-md border border-neutral-200 object-cover"
-                      />
-                    )}
-                    <div className="min-w-0">
-                      <span className="tnum font-bold">
-                        {formatKm(Number(r.distance_km))} km
-                      </span>
-                      <span className="ml-2 text-neutral-400">
-                        {formatDateDot(r.run_date)}
-                      </span>
-                      {r.note && (
-                        <span className="ml-2 truncate text-neutral-400">{r.note}</span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!confirm("이 기록을 삭제할까요?")) return;
-                      try {
-                        await deletePersonalRun(r.id);
-                        await Promise.all([reloadMine(), reloadCrew()]);
-                      } catch (e) {
-                        alert(e instanceof Error ? e.message : "삭제 실패");
-                      }
-                    }}
-                    className="shrink-0 text-xs text-neutral-400 hover:text-red-500"
-                  >
-                    삭제
-                  </button>
-                </li>
-              ))}
-            </ul>
+                  ‹
+                </button>
+                <div className="text-center">
+                  <p className="text-sm font-bold">
+                    {Number(month.slice(0, 4))}년 {Number(month.slice(5))}월
+                  </p>
+                  <p className="tnum text-xs text-neutral-400">
+                    {formatKm(monthKm)} km · {monthRuns.length}회
+                  </p>
+                </div>
+                <button
+                  onClick={() => setMonthCursor(monthKeyShift(month, 1))}
+                  disabled={month >= myMonths.now}
+                  className="rounded-lg px-2 py-1 text-neutral-400 disabled:opacity-30"
+                  aria-label="다음 달"
+                >
+                  ›
+                </button>
+              </div>
+              {/* key: 달을 넘기면 선택 날짜도 그 달 기준으로 다시 잡히게 */}
+              <RunCalendar
+                key={month}
+                runs={monthRuns}
+                start={monthSpan.start}
+                end={monthSpan.end}
+                onDelete={(r) => deleteMyRun(r.id)}
+              />
+            </div>
           )}
         </section>
       )}

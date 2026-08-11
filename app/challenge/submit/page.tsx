@@ -27,7 +27,7 @@ import { compressImage, THUMB_QUALITY, THUMB_SIZE } from "@/lib/image";
 import { uploadProof } from "@/lib/storage";
 import { formatDateDot, formatKm, todayISO } from "@/lib/format";
 import SupabaseNotice from "@/components/SupabaseNotice";
-import ProofThumb from "@/components/ProofThumb";
+import RunCalendar from "@/components/RunCalendar";
 
 export default function SubmitPage() {
   const { user } = useAuth();
@@ -422,42 +422,17 @@ export default function SubmitPage() {
                   아직 기록이 없어요. 위에서 첫 기록을 추가해 보세요!
                 </p>
               ) : (
-                <ul className="divide-y divide-neutral-100 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-                  {myRuns.map((r) => (
-                    <li
-                      key={r.id}
-                      className="flex items-center justify-between px-4 py-3 text-sm"
-                    >
-                      <div className="flex min-w-0 items-center gap-2">
-                        {r.image_url && (
-                          <ProofThumb
-                            url={r.image_url}
-                            className="h-10 w-10 rounded-md border border-neutral-200 object-cover"
-                          />
-                        )}
-                        <div className="min-w-0">
-                          <span className="tnum font-bold">
-                            {formatKm(Number(r.distance_km))} km
-                          </span>
-                          <span className="ml-2 text-neutral-400">
-                            {formatDateDot(r.run_date)}
-                          </span>
-                          {r.note && (
-                            <span className="ml-2 truncate text-neutral-400">
-                              {r.note}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        className="shrink-0 text-xs text-neutral-400 hover:text-red-500"
-                      >
-                        삭제
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                // 시즌이 쌓여도 목록이 길어지지 않도록 달력으로(리더보드 시트와 같은 뷰).
+                // 위에서 고른 날짜와 연동돼 "이 날 뭘 올렸더라"가 바로 보인다.
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+                  <RunCalendar
+                    runs={myRuns}
+                    start={season.start_date}
+                    end={season.end_date}
+                    focusDate={runDate || undefined}
+                    onDelete={(r) => handleDelete(r.id)}
+                  />
+                </div>
               )}
             </div>
           )}

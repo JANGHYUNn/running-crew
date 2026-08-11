@@ -98,6 +98,20 @@ export function monthKeyMinus(key: string, n: number): string {
   return `${y}-${String(m).padStart(2, "0")}`;
 }
 
+/** "YYYY-MM" 키를 n개월 이동(음수면 과거로). 월 넘김·해 넘김을 Date 에 맡긴다. */
+export function monthKeyShift(key: string, n: number): string {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** "YYYY-MM" 키가 가리키는 달의 첫날·마지막날("YYYY-MM-DD") */
+export function monthRange(key: string): { start: string; end: string } {
+  const [y, m] = key.split("-").map(Number);
+  const last = new Date(y, m, 0).getDate(); // 다음 달 0일 = 이번 달 말일
+  return { start: `${key}-01`, end: `${key}-${String(last).padStart(2, "0")}` };
+}
+
 /** 주 시작일 키("YYYY-MM-DD")에서 n주 뺀 키 */
 export function weekKeyMinus(key: string, n: number): string {
   const d = new Date(`${key}T00:00:00`);

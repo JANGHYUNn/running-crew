@@ -17,10 +17,13 @@ import {
 } from "@/lib/challenge";
 import { formatDateDot, formatKm, todayISO } from "@/lib/format";
 import SupabaseNotice from "@/components/SupabaseNotice";
-import ProofThumb from "@/components/ProofThumb";
 import Sheet from "@/components/Sheet";
+import RunCalendar from "@/components/RunCalendar";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
+
+/** 멤버 기록 로드 상태 — 실패를 빈 목록과 구분한다 */
+type RunsState = Run[] | "error";
 
 export default function ChallengePage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -33,7 +36,7 @@ export default function ChallengePage() {
   const [open, setOpen] = useState<Set<string>>(new Set());
   // 멤버 탭 시 그 사람 기록·증빙을 시트로 열람(다른 사람 검증)
   const [sheet, setSheet] = useState<LeaderboardMember | null>(null);
-  const [memberRuns, setMemberRuns] = useState<Record<string, Run[]>>({});
+  const [memberRuns, setMemberRuns] = useState<Record<string, RunsState>>({});
 
   // 시즌 목록 로드(개수와 무관하게 항상 선택 화면을 먼저 보여준다)
   useEffect(() => {
@@ -112,14 +115,19 @@ export default function ChallengePage() {
     });
   }
 
-  // 멤버 기록은 시트로 연다(한 달치 30줄이 리더보드에 그대로 펼쳐지지 않도록).
+  // 멤버 기록은 시트로 연다(한 달치가 리더보드에 그대로 펼쳐지지 않도록).
   function openRuns(row: LeaderboardMember) {
     setSheet(row);
     const memberId = row.member.id;
+    // 0회 조원은 조회할 게 없으니 바로 빈 목록으로 확정(탭이 먹통이 되지 않게 시트는 연다)
+    if (row.runCount === 0) {
+      setMemberRuns((prev) => ({ ...prev, [memberId]: [] }));
+      return;
+    }
     if (memberRuns[memberId] === undefined && selectedSeason) {
       listRunsByMember(memberId, selectedSeason)
         .then((runs) => setMemberRuns((prev) => ({ ...prev, [memberId]: runs })))
-        .catch(() => setMemberRuns((prev) => ({ ...prev, [memberId]: [] })));
+        .catch(() => setMemberRuns((prev) => ({ ...prev, [memberId]: "error" })));
     }
   }
 
@@ -302,10 +310,15 @@ export default function ChallengePage() {
                         >
                           <button
                             onClick={() => openRuns(m)}
-                            disabled={m.runCount === 0}
-                            className="flex w-full items-center justify-between gap-2 py-1.5 text-left text-sm disabled:opacity-60"
+                            className="flex w-full items-center justify-between gap-2 py-2 text-left text-sm"
                           >
-                            <span className="truncate text-neutral-700">
+                            <span
+                              className={`truncate ${
+                                m.runCount === 0
+                                  ? "text-neutral-400"
+                                  : "text-neutral-700"
+                              }`}
+                            >
                               {memberLabel(allMembers, m.member)}
                             </span>
                             <span className="tnum shrink-0 text-neutral-500">
@@ -313,11 +326,7 @@ export default function ChallengePage() {
                               <span className="ml-1 text-xs text-neutral-400">
                                 ({m.runCount})
                               </span>
-                              {m.runCount > 0 && (
-                                <span className="ml-1.5 text-xs text-neutral-300">
-                                  ›
-                                </span>
-                              )}
+                              <span className="ml-1.5 text-xs text-neutral-300">›</span>
                             </span>
                           </button>
                         </li>
@@ -353,47 +362,40 @@ export default function ChallengePage() {
           }`}
           onClose={() => setSheet(null)}
         >
-          <MemberRuns runs={memberRuns[sheet.member.id]} />
+          {/* key: 다른 조원을 열었을 때 달력의 선택 날짜가 남아 있지 않도록 */}
+          <MemberRuns
+            key={sheet.member.id}
+            runs={memberRuns[sheet.member.id]}
+            season={selectedSeason}
+          />
         </Sheet>
       )}
     </div>
   );
 }
 
-/** 시트 안 기록 목록(최신순). 한 달치가 쌓여도 시트 안에서만 스크롤된다. */
-function MemberRuns({ runs }: { runs: Run[] | undefined }) {
-  if (runs === undefined)
+/** 시트 안 기록 뷰. 기록이 쌓여도 리스트가 길어지지 않도록 달력 히트맵으로 보여준다. */
+function MemberRuns({
+  runs,
+  season,
+}: {
+  runs: RunsState | undefined;
+  season: Season | undefined;
+}) {
+  if (runs === undefined || !season)
     return <p className="py-4 text-center text-sm text-neutral-400">불러오는 중…</p>;
+  if (runs === "error")
+    return (
+      <p className="py-4 text-center text-sm text-red-500">
+        기록을 불러오지 못했어요. 닫고 다시 눌러보세요.
+      </p>
+    );
   if (runs.length === 0)
-    return <p className="py-4 text-center text-sm text-neutral-400">기록 없음</p>;
+    return (
+      <p className="py-4 text-center text-sm text-neutral-400">아직 기록이 없어요</p>
+    );
 
-  return (
-    <ul className="space-y-2">
-      {runs.map((r) => (
-        <li key={r.id} className="flex items-center gap-2.5 text-sm">
-          {r.image_url ? (
-            <ProofThumb
-              url={r.image_url}
-              className="h-11 w-11 rounded-lg border border-neutral-200 object-cover"
-            />
-          ) : (
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-dashed border-neutral-200 text-[9px] text-neutral-300">
-              없음
-            </span>
-          )}
-          <span className="tnum font-bold text-neutral-700">
-            {formatKm(Number(r.distance_km))}km
-          </span>
-          <span className="tnum text-xs text-neutral-400">
-            {formatDateDot(r.run_date)}
-          </span>
-          {r.note && (
-            <span className="truncate text-xs text-neutral-400">{r.note}</span>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
+  return <RunCalendar runs={runs} start={season.start_date} end={season.end_date} />;
 }
 
 function EmptyState({ title, desc }: { title: string; desc: string }) {

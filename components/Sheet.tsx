@@ -40,7 +40,7 @@ export default function Sheet({
       <div
         role="dialog"
         aria-modal="true"
-        className="sheet__panel relative flex max-h-[80vh] w-full flex-col rounded-t-3xl bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.18)] sm:max-h-[70vh] sm:max-w-md sm:rounded-2xl sm:shadow-2xl"
+        className="sheet__panel relative flex max-h-[85vh] w-full flex-col rounded-t-3xl bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.18)] sm:max-h-[70vh] sm:max-w-md sm:rounded-2xl sm:shadow-2xl"
       >
         {/* 그립(모바일에서 시트임을 알리는 시각 힌트) */}
         <div className="flex shrink-0 justify-center pt-3 sm:hidden">

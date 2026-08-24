@@ -22,13 +22,14 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
+  // 외부 도메인(지도 타일 등)은 워커가 건드리지 않고 브라우저에 맡긴다.
+  if (new URL(request.url).origin !== self.location.origin) return;
 
   event.respondWith(
     (async () => {
       try {
         const res = await fetch(request);
-        // 같은 출처 응답만 캐시에 저장
-        if (res.ok && new URL(request.url).origin === self.location.origin) {
+        if (res.ok) {
           const cache = await caches.open(CACHE);
           cache.put(request, res.clone());
         }

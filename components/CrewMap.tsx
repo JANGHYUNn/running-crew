@@ -64,24 +64,35 @@ const COURSE_LAYERS = [
   "courses-hit",
 ];
 const NO_MATCH = "__none__";
+// 이 줌보다 멀리 보면 코스 시작 핀을 숨긴다 — 점령 밴드는 50m(축소 시 2~3px)라 34px 핀에 덮인다.
+const PIN_MIN_ZOOM = 12.5;
 
-/** 선택된 코스만 강조(굵은 흰 테두리+선명), 나머지는 흐릿하게. id 가 null 이면 전체 평상. */
-function applyHighlight(map: mapboxgl.Map, highlightId: string | null) {
+/** 코스 라인 스타일.
+ *  - dim(땅따먹기 켜짐): 경로는 "배경 참고용"으로 얇고 흐리게 → 얇은 점령 밴드가 위로 읽힌다.
+ *  - highlightId: 탭한 코스만 선명(굵은 흰 테두리), 나머지는 더 흐리게. null 이면 전체 평상. */
+function applyCourseStyle(map: mapboxgl.Map, highlightId: string | null, dim: boolean) {
   if (!map.getLayer("courses-highlight")) return;
   const id = highlightId ?? NO_MATCH;
   const on = Boolean(highlightId);
   map.setFilter("courses-highlight", ["==", ["get", "id"], id]);
   map.setFilter("courses-highlight-casing", ["==", ["get", "id"], id]);
+
+  map.setPaintProperty("courses-line", "line-width", dim ? 2.2 : 3.5);
   map.setPaintProperty(
     "courses-line",
     "line-opacity",
-    on ? ["case", ["==", ["get", "id"], id], 0.95, 0.18] : 0.9
+    on ? ["case", ["==", ["get", "id"], id], 0.95, dim ? 0.1 : 0.18] : dim ? 0.45 : 0.9
   );
-  map.setPaintProperty("courses-casing", "line-opacity", on ? 0.1 : 0.35);
+  map.setPaintProperty("courses-casing", "line-width", dim ? 4 : 6);
+  map.setPaintProperty("courses-casing", "line-opacity", on ? 0.1 : dim ? 0.18 : 0.35);
   map.setPaintProperty(
     "courses-label",
     "text-opacity",
-    on ? ["case", ["==", ["get", "id"], id], 1, 0.25] : 1
+    on
+      ? ["case", ["==", ["get", "id"], id], 1, dim ? 0.15 : 0.25]
+      : dim
+        ? 0.55
+        : 1
   );
 }
 
@@ -112,6 +123,7 @@ function renderCourseMarkers(
     el.title = `${c.name} · 구글맵에서 열기`;
     el.setAttribute("aria-label", `${c.name} 구글맵에서 열기`);
     el.style.setProperty("--pin-color", c.color);
+    el.dataset.courseId = c.id;
     el.addEventListener("click", (ev) => {
       ev.stopPropagation();
       openGoogleMaps(start[0], start[1]);
@@ -121,6 +133,23 @@ function renderCourseMarkers(
     );
   }
   return markers;
+}
+
+/** 핀 표시 규칙 — 가릴 땅이 있을 때만 숨긴다.
+ *  땅따먹기가 꺼져 있으면 항상 표시, 켜져 있으면 가까이서(PIN_MIN_ZOOM 이상)만 + 강조 코스는 항상. */
+function updatePinVisibility(
+  map: mapboxgl.Map,
+  markers: mapboxgl.Marker[],
+  highlightId: string | null,
+  territoryOn: boolean
+) {
+  const near = map.getZoom() >= PIN_MIN_ZOOM;
+  for (const m of markers) {
+    const el = m.getElement();
+    const show =
+      !territoryOn || near || (highlightId !== null && el.dataset.courseId === highlightId);
+    el.classList.toggle("course-pin--hidden", !show);
+  }
 }
 
 function apply(map: mapboxgl.Map, territories: Territory[]) {
@@ -202,14 +231,19 @@ export default function CrewMap({
         id: "territory-fill",
         type: "fill",
         source: "territory",
-        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.4 },
+        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.5 },
       });
       map.addLayer({
         id: "territory-line",
         type: "line",
         source: "territory",
         layout: { "line-join": "round" },
-        paint: { "line-color": ["get", "color"], "line-width": 1.5, "line-opacity": 0.9 },
+        // 축소할수록 테두리를 굵게 — 50m 밴드가 한 줄로 뭉개져도 색이 남는다.
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 3, 13, 2, 16, 1.5],
+          "line-opacity": 1,
+        },
       });
 
       // 러닝 추천 경로(라인). 어두운 캐싱선 위에 밝은 색 라인 + 코스명 라벨.
@@ -286,6 +320,16 @@ export default function CrewMap({
         map.getCanvas().style.cursor = "";
       });
 
+      // 줌이 바뀌면 핀 표시 갱신(멀어지면 숨김).
+      map.on("zoom", () =>
+        updatePinVisibility(
+          map,
+          markersRef.current,
+          highlightRef.current,
+          showTerritoryRef.current
+        )
+      );
+
       // 초기 표시 상태 반영.
       setVisible(map, TERRITORY_LAYERS, showTerritoryRef.current);
       setVisible(map, COURSE_LAYERS, showCoursesRef.current);
@@ -295,7 +339,13 @@ export default function CrewMap({
         showCoursesRef.current,
         markersRef.current
       );
-      applyHighlight(map, highlightRef.current);
+      updatePinVisibility(
+        map,
+        markersRef.current,
+        highlightRef.current,
+        showTerritoryRef.current
+      );
+      applyCourseStyle(map, highlightRef.current, showTerritoryRef.current);
 
       loadedRef.current = true;
       apply(map, dataRef.current);
@@ -331,6 +381,12 @@ export default function CrewMap({
       showCoursesRef.current,
       markersRef.current
     );
+    updatePinVisibility(
+      map,
+      markersRef.current,
+      highlightRef.current,
+      showTerritoryRef.current
+    );
     if (fitCourses) fitToCourses(map, courses);
   }, [courses, fitCourses]);
 
@@ -348,6 +404,9 @@ export default function CrewMap({
       showCourses,
       markersRef.current
     );
+    updatePinVisibility(map, markersRef.current, highlightRef.current, showTerritory);
+    // 땅따먹기가 켜져 있으면 경로는 배경으로 물러난다(꺼지면 원래 선명도로 복귀).
+    applyCourseStyle(map, highlightRef.current, showTerritory);
   }, [showTerritory, showCourses]);
 
   // 강조 코스 변경 → 강조 적용 + 그 코스로 지도 이동.
@@ -355,7 +414,13 @@ export default function CrewMap({
     highlightRef.current = highlightedCourseId;
     const map = mapRef.current;
     if (!map || !loadedRef.current) return;
-    applyHighlight(map, highlightedCourseId);
+    applyCourseStyle(map, highlightedCourseId, showTerritoryRef.current);
+    updatePinVisibility(
+      map,
+      markersRef.current,
+      highlightedCourseId,
+      showTerritoryRef.current
+    );
     if (highlightedCourseId) {
       const c = coursesRef.current.find((x) => x.id === highlightedCourseId);
       if (c) fitToCourses(map, [c]);

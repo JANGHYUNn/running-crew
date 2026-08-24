@@ -35,7 +35,8 @@ export default function MapPage() {
   const [error, setError] = useState<string | null>(null);
   // 지도 레이어 표시 토글(땅따먹기 / 러닝 추천 경로).
   const [showTerritory, setShowTerritory] = useState(true);
-  const [showCourses, setShowCourses] = useState(true);
+  // 추천 경로는 기본 off — 땅따먹기가 이 화면의 주인공이고, 라인·핀이 얇은 점령 밴드를 덮는다.
+  const [showCourses, setShowCourses] = useState(false);
   // 겹치는 경로 구분용: 탭한 코스만 강조(한 번 더 탭하면 해제).
   const [highlightedCourseId, setHighlightedCourseId] = useState<string | null>(null);
   // 하단 시트 탭: 땅따먹기 순위 / 추천 경로 브라우저.
@@ -59,15 +60,18 @@ export default function MapPage() {
   }, [courses, visibleCourses, query]);
 
   // 지역 칩 선택: 지도·리스트를 그 지역으로 좁히고 강조는 해제(다른 지역 코스였을 수 있으므로).
+  // 경로 레이어가 꺼져 있으면 켠다 — 안 그러면 탭해도 지도에 아무 변화가 없다(기본 off).
   function selectRegion(r: string | null) {
     setActiveRegion(r);
     setHighlightedCourseId(null);
+    setShowCourses(true);
   }
   // 코스 탭: 검색으로 다른 지역 코스를 골랐어도 지도에 보이도록 그 지역으로 전환 + 강조 토글.
   function selectCourse(c: Course) {
     setActiveRegion(c.region);
     setQuery("");
     setHighlightedCourseId((cur) => (cur === c.id ? null : c.id));
+    setShowCourses(true);
   }
 
   // 로그인 상태(전역)가 정해지면 icu 연동·점령현황 확인. 로그인 변화에 반응.
